@@ -52,7 +52,7 @@ class fixed_unsigned;
 
 // IEEE 754 float with bit count `N`
 template <host_unsigned N>
-class ieee754_float;
+class ieee754_float, float;
 
 // General-purpose float
 template <bool IsSigned, host_unsigned ExponentSize, host_unsigned MantissaSize, host_unsigned ExponentBias>
@@ -148,5 +148,5 @@ S++ declares string literals similarly to C++, using double quotes. Example: `"H
 The default encoding is UTF-8 and will produce arrays of `unsigned<8>` (or equivalently, `u8`). The encoding in the current module can be changed using the compile-time command `default_encoding([ENCODING_KEYWORD])`. The full list of available encodings is:
 - `encoding_utf8`: UTF-8, will yield an array of `unsigned<8>` wrapped into a `StringUtf8` object. Access to this object yields `unsigned<32>` code points.
 - `encoding_utf16`: UTF-16, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Access to this object yields `unsigned<16>` code points.
-- `encoding_Ucs2`: UCS-2, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Fixed-size characters, the code points are presented as-is in the array.
+- `encoding_ucs2`: UCS-2, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Fixed-size characters, the code points are presented as-is in the array.
 - `ascii`: ASCII encoding, will yield an array of `unsigned<8>` wrapped into a `StringAscii` object. Only the ASCII table can be encoded within the literal. Fixed-size characters, the code points are presented as-is in the array.
