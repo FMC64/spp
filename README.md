@@ -42,8 +42,7 @@ class signed;
 template <host_unsigned N>
 class unsigned;
 
-// Signed two's complement fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`,
-// where `IntegerBitCount` must be at least one to store the sign
+// Signed two's complement fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
 template <host_unsigned IntegerBitCount, host_unsigned FractionalBitCount>
 class fixed_signed;
 
@@ -77,8 +76,8 @@ native class host_unsigned, host_u;
 native class host_signed, host_s;
 
 // IEEE 754 float of the native register size of the platform the S++ compiler runs on
-// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `signed<64>`
-// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `signed<32>`
+// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `float<64>`
+// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `float<32>`
 native class host_float, host_f;
 
 // Similar to `host_unsigned`, `host_signed` and `host_device` respectively,
@@ -115,3 +114,39 @@ S++ presents two operators to be combined to realise conversions between two dif
 - `[TARGET_DATA_TYPE] lossy reinterpret ([SOURCE_VALUE])`: reinterpreted lossy data conversion. The only requiment is that `[TARGET_DATA_TYPE]` and `[SOURCE_VALUE]` must both be scalars. Only `min(bits_of([TARGET_DATA_TYPE]), bits_of([SOURCE_DATA_TYPE])` will be taken from the LSB of the source to the LSB of the target, and the rest zero-padded.
 
 From these definitions, the user will observe that even a `lossy` conversion will not be able to convert a signed data type to an unsigned one. There is then a pratical bias in `lossy` converting an unsigned scalar to a signed one when comparisons or accumulations between different data types are necessary.
+
+
+#### Scalar literals
+
+Here S++ shines with its unconventionality. Because of the implementation simplicity requirement, scalar literals are represented in little-endian notation.  
+Little-endian is the standard on a S++ system. Conventional big-endian notation (denoted `arabic` here) is optional but not recommended for optimal compiling speed. The early versions of S++ will not include a `arabic` literal parser.
+
+Because little-endian is basically not ever used for human interfaces, their usage must be prepended by a `*` symbol. For example, the arabic `10` decimal scalar for the number ten is represented by `*01` as standard decimal in S++, while both of them hold the exact same value. Both `arabic` and default notations are supported. By default, S++ standard functions output in little-endian decimal while always explicitly specifying the `*` prefix symbol.
+
+Honestly, it is tempting to go all the way in there and not support `arabic` notation altogether. That would be in the spirit of the language. But that would make the language much less attractive to beginners so both options are redundently available.
+
+As for the literals themselves, they have their own lossless unnamed type, just wide enough to represent the value with full precision. They can only be represented on the host during compile-time. Lossless compile-time operations involving multiple literals is possible. They may need to be `lossy` converted to the target type if not representable in binary.  
+Futhermore, literals are in two sets: binary fixed-point unsigned integers and reals, the former being a subset of the latter. Bitwise operations can only be operated on binary fixed-point unsigned integers.
+
+Let's explore how to express a literal:
+
+The general notation is `*([BASE])([FRACTION].)[INTEGER](x[EXPONENT])`, where:
+- `([BASE])` is decimal if not supplied, or may be `x` for hexadecimal notation, `o` for octal, `q` for base-4 and `b` for binary
+- `([FRACTION].)` is the fractional part of the literal if the literal needs to be fractional, represented in the selected base. As this is little-endian, the fractional part starts off with the least significant digit to end with the digit right under the point in weight. There is no limit to the size of this part.
+- `[INTEGER]` is the mandatory section of the literal, represented in the selected base. Starts with the least significant digit to end with the most significant digit. There is no limit to the size of this part.
+- `(x[EXPONENT])` is the optional exponent of the overall literal, which defaults to zero. The conventional `e` is not used, as it is reserved for hexadecimal. The exponent follows the selected base. Useful to represent large numbers without any trouble.
+
+In `arabic` notation, the general notation is `([BASE])INTEGER(.[FRACTION])(x[EXPONENT])`.
+
+The value of the literal is `(INTEGER + FRACTION * pow(BASE, -FRACTION_WIDTH)) * pow(BASE, EXPONENT)`, where `FRACTION_WIDTH` is the number of digits in `BASE` within `FRACTION`.  
+The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`sqrt`, `pow`, `log<Base>`, `exp`, `ln`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`). Real constants with their exact value such as `pi`, `tau` and `euler` are available. To guarantee no loss, the literal must be lazily evaluated when converted to a builtin non-literal data type.
+
+#### String literals
+
+S++ declares string literals similarly to C++, using double quotes. Example: `"Hello world!"`. This results into a compile-time array of the current character scalar. An encoding keyword can be prepended to the string literal to change its encoding from the current one.
+
+The default encoding is UTF-8 and will produce arrays of `unsigned<8>` (or equivalently, `u8`). The encoding in the current module can be changed using the compile-time command `default_encoding([ENCODING_KEYWORD])`. The full list of available encodings is:
+- `encoding_utf8`: UTF-8, will yield an array of `unsigned<8>` wrapped into a `StringUtf8` object. Access to this object yields `unsigned<32>` code points.
+- `encoding_utf16`: UTF-16, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Access to this object yields `unsigned<16>` code points.
+- `encoding_Ucs2`: UCS-2, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Fixed-size characters, the code points are presented as-is in the array.
+- `ascii`: ASCII encoding, will yield an array of `unsigned<8>` wrapped into a `StringAscii` object. Only the ASCII table can be encoded within the literal. Fixed-size characters, the code points are presented as-is in the array.
