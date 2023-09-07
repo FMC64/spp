@@ -101,7 +101,7 @@ By default, S++ presents every value of these data types to every application, w
 
 Because many users will want to use non-software emulated data types exclusively, some keywords are introduced to issue a warning when software emulation would be necessary.  The `native` keywords hints that the following data type must be supported in hardware in its loading and storing. Warnings will be issued if a particular non-hardware supported operation is performed. Other `native`-based keywords are available:
 - `native_load_store`: more relaxed version of `native`. Takes precedence over `native`. Only loading and storing of the data type must be supported in hardware. All arithmetic operations are allowed to be performed in software if not available in hardware.
-- `non_native`: takes precedence over every other `native` keyword. Allows every software trick to emulate the data type, without issuing any warning.
+- `non_native`: takes precedence over every other `native` keyword. Allows every software trick to emulate the data type if not available in hardware, without issuing any warning.
 
 By default, the host and device-native data types are denoted as `native`. A `native`-based keyword can be prepended to every data type as default in the current module using the compile-time command: `default_native([NATIVE_KEYWORD])`. This cannot be changed for required modules unless modifying them.
 
