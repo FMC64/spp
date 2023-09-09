@@ -31,8 +31,8 @@ In this way, S++ is heavily templated and expects the user to use them. Even bui
 #### Scalar data types
 
 ```spp
-// Abstract scalar, cannot be instanciated but can used as a type parameter
-// to accept values who implement such interface
+// Abstract scalar, cannot be instanciated but can be used as a type parameter
+// to accept values which implement such interface
 interface scalar;
 
 // Abstract natural integer, encompasses any integer which can represent
@@ -52,8 +52,8 @@ interface positive_real extends scalar;
 // is not required to present an absolute precision on any value.
 interface real extends positive_real;
 
-// Abstract transcendental number. Because of their nature, their have their own class of `scalar`s
-// as they really cannot be treated as anything else than a symbol with special properties.
+// Abstract transcendental number. Because of their nature, they have their own class of `scalar`s
+// as they really cannot be treated as anything other than a symbol with special properties.
 interface transcendental extends scalar;
 
 // Boolean type
@@ -164,7 +164,7 @@ Because little-endian is basically not ever used for human interfaces, their usa
 Honestly, it is tempting to go all the way in there and not support `arabic` notation altogether. That would be in the spirit of the language. But that would make the language much less attractive to beginners so both options are redundently available.
 
 As for the literals themselves, they have their own lossless unnamed type, just wide enough to represent the value with full precision. They can only be represented on the host during compile-time. Lossless compile-time operations involving multiple literals is possible. They may need to be `lossy` converted to the target type if not representable in binary.  
-Futhermore, literals are in two sets: binary fixed-point unsigned integers and reals, the former being a subset of the latter. Bitwise operations can only be operated on binary fixed-point unsigned integers.
+Futhermore, literals are in two sets: binary fixed-point unsigned integers and positive reals, the former being a subset of the latter. Bitwise operations can only be operated on binary fixed-point unsigned integers.
 
 Let's explore how to express a positive literal (a negative one is defined by using the prefix `-` unary operator):
 
@@ -180,6 +180,7 @@ The value of the literal (which is also the internal representation) is `(INTEGE
 The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`sqrt`, `pow`, `log<Base>`, `exp`, `ln`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
 `transcendental` constants with their exact value such as `pi`, `tau` and `e` are available. Scalar literals are guaranteed to be lossless, even under complex arithmetic, exponential or trigonometric operations. When losslessness cannot be guaranteed, the evaluation is deferred to the convertion to a non-literal scalar data type. These operations will be printed as-is if requested, without lossy evaluation. This is the only exception to the usually eager evaluation approach of S++.
 
+- The implementation must only have bitwise operators, `+`, `-` and `*` being considered lossless literal operators. The conversion of the result of all others operators to a non-literal scalar must be considered `lossy`, and then force the user to use an explicit `lossy` conversion. Exceptions must not apply even if the result of the operation actually happens to be representable without loss for these operations. This case is assumed to be non-trivial and may cause significant discrepancies among implementations if would be left to their discretion: lossy behavior must be assumed anyway.
 - Note that the lossy conversion of complex operations over scalar literals to a non-literal scalar data type is not guaranteed to be exact. It is left to the implementation, even if obviously it would be ideal to be able to compute each bit with absolute precision (and an extra one to round the LSB to nearest). Implementations based on floating-point math functions are heavily encouraged to perform computations on the most precise float available on the host. Hosts with fixed-point support only are encouraged to use at least 32 bits of fraction and 32 bits of integer, and ideally 64 bits of both if wide enough registers are available and that carry propagation is cheap enough. Applications are requested to assume that any implementation will provide a reasonable degree of precision and performance that the host can provide, that would make circumventing such a system unreasonable in the vast majority of use-cases. Regardless of machine-specific details, the application should expect the base implementation of S++ to detect remarkable operations on `transendental` and `real` scalars, such that they get converted to lossless equivalent operations that will likely result in more accuracy when evaluated by the platform-dependent implementation.
 
 #### String literals
