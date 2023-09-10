@@ -20,15 +20,15 @@ S++ relies heavily on static analysis to infer temporary array dimensions and de
 
 More importantly, S++ is more of an experimental language where simplicity of the implementation, safety and top performance are equivalent highest-level priorities. Established conventions bear no value in this context. S++ does not aim at being a production-ready language, even if long-term reliability and stability in its design is also a priority. At best, having S++ being influencial in its concepts and spirit would be a reasonable goal.
 
-## Concepts and interface
+## Specification
 
-### Builtin data types
+### 1. Builtin data types
 
 S++ agrees with C++ that compile-time computations and metaprogramming are powerful features. The user should be able to generate specialized code at compile-time, at the cost of increased binary size. S++ does not follow the more contemporary approach of dynamic languages of using runtime polymorphism based off a single set of generic functions and methods in the binary, as Java (as JVM-based languages such as Scala and Dart) and JavaScript (including TypeScript) do.
 
 In this way, S++ is heavily templated and expects the user to use them. Even builtin data types are in fact templates to remove redundancy and improve elegance in its usage.
 
-#### Scalar data types
+#### 1.1 Scalar data types
 
 ```spp
 // Abstract scalar, cannot be instanciated but can be used as a type parameter
@@ -143,7 +143,7 @@ Because many users will want to use non-software emulated data types exclusively
 
 By default, the host and device-native data types are denoted as `native`. A `native`-based keyword can be prepended to every data type as default in the current module using the compile-time command: `default_native([NATIVE_KEYWORD])`. This cannot be changed for required modules unless modifying them.
 
-#### Type conversions
+#### 1.2. Type conversions
 
 S++ presents two operators to be combined to realise conversions between two different data types:
 - `[TARGET_DATA_TYPE]([SOURCE_VALUE])`: lossless data conversion. `[SOURCE_VALUE]` must be entirely representable within `[TARGET_DATA_TYPE]`. This is the indended way of performing sign extension for two's complement integers. This is the default data conversion within the language, other types of conversion need to be explicitely called.
@@ -154,7 +154,7 @@ S++ presents two operators to be combined to realise conversions between two dif
 From these definitions, the user will observe that even a `lossy` conversion will not be able to convert a signed data type to an unsigned one. There is then a pratical bias in `lossy` converting an unsigned scalar to a signed one when comparisons or accumulations between different data types are necessary.
 
 
-#### Scalar literals
+#### 1.3. Scalar literals
 
 Here S++ shines with its unconventionality. Because of the implementation simplicity requirement, scalar literals are represented in little-endian notation.  
 Little-endian is the standard on a S++ system. Conventional big-endian notation (denoted `arabic` here) is optional but not recommended for optimal compiling speed. The early versions of S++ will not include a `arabic` literal parser.
@@ -176,6 +176,8 @@ The general notation is `*([BASE])([FRACTION].)[INTEGER](x[EXPONENT])`, where:
 
 In `arabic` notation, the general notation is `([BASE])INTEGER(.[FRACTION])(x[EXPONENT])`.
 
+Note that each digit sequence can contain a `_` which will get ignored while parsing. These characters can be inserted to increase readability of the literal.
+
 The value of the literal (which is also the internal representation) is `(INTEGER + FRACTION * pow(BASE, -FRACTION_WIDTH)) * pow(BASE, EXPONENT)`, where `FRACTION_WIDTH` is the number of digits in `BASE` within `FRACTION`. All of the individual components are `natural`s, but the overall value may be promoted to a `positive_real` by evaluating it.  
 The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`sqrt`, `pow`, `log<Base>`, `exp`, `ln`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
 `transcendental` constants with their exact value such as `pi`, `tau` and `e` are available. Scalar literals are guaranteed to be lossless, even under complex arithmetic, exponential or trigonometric operations. When losslessness cannot be guaranteed, the evaluation is deferred to the convertion to a non-literal scalar data type. These operations will be printed as-is if requested, without lossy evaluation. This is the only exception to the usually eager evaluation approach of S++.
@@ -183,7 +185,7 @@ The compile-time literal system should support complex arithmetic operations suc
 - The implementation must only have bitwise operators, `+`, `-` and `*` being considered lossless literal operators. The conversion of the result of all others operators to a non-literal scalar must be considered `lossy`, and then force the user to use an explicit `lossy` conversion. Exceptions must not apply even if the result of the operation actually happens to be representable without loss for these operations. This case is assumed to be non-trivial and may cause significant discrepancies among implementations if would be left to their discretion: lossy behavior must be assumed anyway.
 - Note that the lossy conversion of complex operations over scalar literals to a non-literal scalar data type is not guaranteed to be exact. It is left to the implementation, even if obviously it would be ideal to be able to compute each bit with absolute precision (and an extra one to round the LSB to nearest). Implementations based on floating-point math functions are heavily encouraged to perform computations on the most precise float available on the host. Hosts with fixed-point support only are encouraged to use at least 32 bits of fraction and 32 bits of integer, and ideally 64 bits of both if wide enough registers are available and that carry propagation is cheap enough. Applications are requested to assume that any implementation will provide a reasonable degree of precision and performance that the host can provide, that would make circumventing such a system unreasonable in the vast majority of use-cases. Regardless of machine-specific details, the application should expect the base implementation of S++ to detect remarkable operations on `transendental` and `real` scalars, such that they get converted to lossless equivalent operations that will likely result in more accuracy when evaluated by the platform-dependent implementation.
 
-#### String literals
+#### 1.4. String literals
 
 S++ declares string literals similarly to C++, using double quotes. Example: `"Hello world!"`. This results into a compile-time array of the current character scalar. An encoding keyword can be prepended to the string literal to change its encoding from the current one.
 
@@ -194,3 +196,68 @@ The default encoding is UTF-8 and will produce arrays of `unsigned<8>` (or equiv
 - `ascii`: ASCII encoding, will yield an array of `unsigned<8>` wrapped into a `StringAscii` object. Only the ASCII table can be encoded within the literal. Fixed-size characters, the code points are presented as-is in the array.
 
 Note that none of these encodings present a null terminating character. The `toNullTerminated` method of these strings should be used to obtain a C (or similar)-compatible string.
+
+### 2. Scope, assignment and evaluation
+
+#### 2.1. Scopes
+
+A scope defines a name space. A name space is a collection of unique identifiers which each resolve to an object. Non-declared identifiers resolve to the `undefined` value. Scopes can be nested one into each other by enclosing a sub-scope into `{}` braces. Within a sub-scope, identifiers in parent scopes can be resolved, however shadowing is not allowed (i.e. no object can be declared in a sub-scope which identifier is equivalent to the one of an object in any super scope).
+
+A S++ module implicitly contains a top-level scope which gets enriched by the user when adding code to it. There is no distinction between a top-level scope and any sub-scope in its usage and properties. Scopes are objects like any other in the language and can be named using a variable assignment. Variables within a scope can be accessed using the `.` operator.
+
+#### 2.2. Variables
+
+A variable is a binding point that is defined within a particular scope, which identifier is unique within that scope. All undeclared variables resolve to the `undefined` value within a scope. `undefined` can be seen as the primitive value and type of every variable, until an assignment overrides it with a primary type which can get enriched with subsequent assignments of various types. A variable has then from zero (undeclared) to an indefinite amount of possible types. S++ statically evaluates the set of possible types for a variable throughout its entire lifetime, and at runtime allocates memory space only once at declaration for the storage for the largest type along with storing the type identifier.
+
+Scalar values (along with their aggregation into objects) can generally be compile-time evaluated as well as runtime evaluated. Some classes of values such as scopes, class/struct/sequence definitions and functions cannot be runtime evaluated. In general, compile-time only values and compile-time and runtime values should not be mixed in their assignment to the same variable. However in practice, the only error that could arise is the runtime usage of a compile-time only value. As long as the application stays in compile-time domain, there is no restriction to the types a variable can be enriched with. A variable staying exclusively in compile-time domain typically acquires a single type at most that gets replaced at each assignment, as other previous types get pruned out by static analysis. In other words, compile-time programming in S++ is almost indistinguishable from typical dynamically-typed programming from a language usage standpoint.
+
+Variable assignment happens using the `=` operator. The left token must be the variable identifier and the expression for its value must lie on the right.
+
+```spp
+// At top-level scope
+// `a` would resolve to `undefined` if used here
+
+topLevel = u32(0hBAAD_BEEF)
+
+// Named scope called `app`
+app = {
+	// `314` binary unsigned fixed-point scalar literal, converted to a non-literal scalar with no loss
+	a = dev_s(314)
+
+	// `2.71` real with usage of a parent scope variable, yielding another real
+	b = 2.71 + topLevel
+}
+
+// `a` would still resolve to `undefined` if used here
+// However, `app.a` and `app.b` could be resolved to scalar values
+```
+
+As mentioned, variables can acquire multiple types:
+
+```spp
+// `a` is `undefined` at this point
+
+a = true	// `a` is `bool` at this point
+
+...		// Some runtime-dependent branch gets us to:
+a = u32(314)	// `a` is `bool | u32` at this point
+
+...		// Some other runtime-dependent branch gets us to:
+a = void	// `a` is `bool | u32 | void` at this point
+```
+
+The `void` value is similar to `undefined` as they are both symbols which require no storage at runtime (aside from the type identifier), but deviates in its purpose and semantic.
+- `undefined` can only be generated by language semantics from the absence of a binding to a variable, or more generally by the absence of user-defined objects in the usage of the language that could be expected to yield any sort of value. The user cannot assign a variable to `undefined`, as it would violate the requirement of `undefined` meaning zero user-defined type to a variable. However, the user can still generate `undefined` values in general (most likely for type checking, for example).
+- `void` can only get user-generated. It is the conventional value to denote emptyness. An object of type `T` which may be or may not be defined could be expressed as a `T | void` type. The main practical difference with `undefined` is that the user explicitly assigns `void` to a variable, where `undefined` is the default value that cannot be assigned. The user is expected not to create other symbols that have the same practical usage as `void` and just use `void` instead.
+
+#### 2.3. Evaluation
+
+S++ is a early evaluated language. S++ attempts to evaluate at compile-time every expression, at long at it does not result in implicit data or semantic loss.
+
+To achieve that, S++ marks every variable with either a compile-time value during parsing of statements, or a deferred unknown value under circumstances where compile-time evaluation is not reasonably possible. Examples of promotion to deferred evaluation include:
+- Usage of a runtime-defined data, such as reading the keyboard in real-time or acquiring data from a file or the network.
+	- File or network acquisition can be made compile-time using the appropriate compile-time functions such as `compile_file` (which works with a filepath or URL).
+- Usage of not yet provided data in the compilation process: for example using an input variable of a function or template
+	- If such variable happens to be compile-time evaluated, the target variable will be promoted from deferred back to compile-time evaluation.
+
+When a function is invoked from the entry point of an application (at any scope depth), machine code is outputed only for variables for which assignment is still deferred, even after compile-time promotions.
