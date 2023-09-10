@@ -26,72 +26,68 @@ More importantly, S++ is more of an experimental language where simplicity of th
 
 S++ agrees with C++ that compile-time computations and metaprogramming are powerful features. The user should be able to generate specialized code at compile-time, at the cost of increased binary size. S++ does not follow the more contemporary approach of dynamic languages of using runtime polymorphism based off a single set of generic functions and methods in the binary, as Java (as JVM-based languages such as Scala and Dart) and JavaScript (including TypeScript) do.
 
-In this way, S++ is heavily templated and expects the user to use them. Even builtin data types are in fact templates to remove redundancy and improve elegance in its usage.
+In this way, S++ is heavily templated and expects the user to use them. Even builtin data types are in fact templates to remove redundancy and improve elegance in its usage. All functions in S++ are better thought as templates, taking in either compile-time or deferred evaluated arguments.
 
 #### 1.1 Scalar data types
 
 ```spp
 // Abstract scalar, cannot be instanciated but can be used as a type parameter
 // to accept values which implement such interface
-interface scalar;
+scalar = interface;
 
 // Abstract natural integer, encompasses any integer which can represent
 // zero and strictly positive integers, but not strictly negative ones.
-interface natural extends scalar;
+natural = interface extends scalar;
 
 // Abstract signed integer, encompasses any integer including the ones which
 // can represent zero, positive and negative values.
-interface integer extends natural;
+integer = interface extends natural;
 
 // Abstract real number, can represent any positive number with a finite representation,
 // is not required to present an absolute precision on any value. Negative values cannot
 // be represented by this type.
-interface positive_real extends scalar;
+positive_real = interface extends scalar;
 
 // Abstract real number, can represent any positive or negative number with a finite representation,
 // is not required to present an absolute precision on any value.
-interface real extends positive_real;
+real = interface extends positive_real;
 
 // Abstract transcendental number. Because of their nature, they have their own class of `scalar`s
 // as they really cannot be treated as anything other than a symbol with special properties.
-interface transcendental extends scalar;
+transcendental = interface extends scalar;
 
 // Boolean type
-class bool implements scalar;
+bool = class implements scalar;
 
 // Signed two's complement integer with bit count `N`
-template <host_unsigned N>
-class signed implements integer;
+signed = function(N: host_unsigned): class implements integer;
 
 // Unsigned integer with bit count `N`
-template <host_unsigned N>
-class unsigned implements natural;
+unsigned = function(N: host_unsigned): class implements natural;
 
 // Signed two's complement fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
-template <host_unsigned IntegerBitCount, host_unsigned FractionalBitCount>
-class fixed_signed implements real;
+// A single bit from `IntegerBitCount` will be used to store the sign
+fixed_signed = function(IntegerBitCount: host_unsigned, FractionalBitCount: host_unsigned) class implements real;
 
 // Unsigned fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
-template <host_unsigned IntegerBitCount, host_unsigned FractionalBitCount>
-class fixed_unsigned implements positive_real;
+fixed_unsigned = function(IntegerBitCount: host_unsigned, FractionalBitCount: host_unsigned): class implements positive_real;
 
 // IEEE 754 float with bit count `N`
-template <host_unsigned N>
-class ieee754_float implements real, float implements real;
+ieee754_float = float = function(N: host_unsigned): class implements real
 
 // Used by `minifloat`
-template <host_unsigned ExponentSize, host_unsigned MantissaSize, host_unsigned ExponentBias>
-class unsigned_minifloat implements positive_real;
+unsigned_minifloat = function(ExponentSize: host_unsigned, MantissaSize: host_unsigned, ExponentBias: host_unsigned): class implements positive_real;
 
 // Used by `minifloat`
-template <host_unsigned ExponentSize, host_unsigned MantissaSize, host_unsigned ExponentBias>
-class signed_minifloat implements real;
+signed_minifloat = function(ExponentSize: host_unsigned, MantissaSize: host_unsigned, ExponentBias: host_unsigned): class implements real;
 
 // General-purpose float
-template <bool IsSigned, host_unsigned ExponentSize, host_unsigned MantissaSize, host_unsigned ExponentBias>
-using minifloat = IsSigned ?
-	unsigned_minifloat<ExponentSize, MantissaSize, ExponentBias> :
-	signed_minifloat<ExponentSize, MantissaSize, ExponentBias>;
+minifloat = function(IsSigned: bool, ExponentSize: host_unsigned, MantissaSize: host_unsigned, ExponentBias: host_unsigned) {
+	if (IsSigned)
+		return unsigned_minifloat(ExponentSize, MantissaSize, ExponentBias);
+	else
+		return signed_minifloat(ExponentSize, MantissaSize, ExponentBias);
+}
 ```
 
 The semicolon is optional in most circumstances within use of the language. Here, it denotes a declaration (not definition) of the class, similarly to C++. Objects declared without a definition cannot be exported out of a module. Here, these objects are declared & defined intrisically within the language.
@@ -100,39 +96,37 @@ All of these builtin data types may be inherited from. In addition, S++ presents
 
 ```spp
 // Unsigned integer of the native register size of the platform the S++ compiler runs on
-// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `unsigned<64>`
-// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `unsigned<32>`
+// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `unsigned(64)`
+// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `unsigned(32)`
 // This is guaranteed to be wide enough to hold a pointer represented as an integer.
-native class host_unsigned implements natural, host_u implements natural;
+host_unsigned = host_u = native class implements natural;
 
 // Signed two's complement integer of the native register size of the platform the S++ compiler runs on
-// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `signed<64>`
-// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `signed<32>`
-native class host_signed implements integer, host_s implements integer;
+// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `signed(64)`
+// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `signed(32)`
+host_signed = host_s = native class implements integer;
 
 // IEEE 754 float of the native register size of the platform the S++ compiler runs on
-// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `float<64>`
-// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `float<32>`
-native class host_float implements real, host_f implements real;
+// Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `float(64)`
+// Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `float(32)`
+host_float = host_f = native class implements real;
 
 // Similar to `host_unsigned`, `host_signed` and `host_device` respectively,
 // these types target the system the application is being built for (and not being built on)
-native class device_unsigned implements natural, dev_u implements natural;
-native class device_signed implements integer, dev_s implements integer;
-native class device_float implements real, dev_f implements real;
+device_unsigned = dev_u = native class implements natural;
+device_signed = dev_s = native class implements integer;
+device_float = dev_f = native class implements real;
 
 // Equivalent to `signed` with the number in the identifier being `N`
-// Each of these `implement integer` (not included for readibility)
-class s8, s16, s32, s64, s128, s256;
+s8 = signed(8), s16 = signed(16), s32 = signed(32), s64 = signed(64), s128 = signed(128), s256 = signed(256)
 // Equivalent to `unsigned` with the number in the identifier being `N`
-// Each of these `implement natural` (not included for readibility)
-class u8, u16, u32, u64, u128, u256;
+u8 = unsigned(8), u16 = unsigned(16), u32 = unsigned(32), u64 = unsigned(64), u128 = unsigned(128), u256 = unsigned(256)
 
 // Equivalent to `ieee754_float` with the number in the identifier being `N`
 // `f80` is the non-IEEE 754, x86 extended precision format
 // All others are IEEE 754 standard
-// Each of these `implement real` (not included for readibility)
-class f16, f32, f64, f80, f128, f256;
+f16 = ieee754_float(16), f32 = ieee754_float(32), f64 = ieee754_float(64), f128 = ieee754_float(128), f256 = ieee754_float(256)
+f80 = class implements real;
 ```
 
 By default, S++ presents every value of these data types to every application, without any restriction. Non-natively supported data types are emulated in software at an increased runtime cost. There is an understanding that the user would go on and emulate these data types anyway, so S++ builts them in to present increased robustness.
@@ -179,7 +173,7 @@ In `arabic` notation, the general notation is `([BASE])INTEGER(.[FRACTION])(x[EX
 Note that each digit sequence can contain a `_` which will get ignored while parsing. These characters can be inserted to increase readability of the literal.
 
 The value of the literal (which is also the internal representation) is `(INTEGER + FRACTION * pow(BASE, -FRACTION_WIDTH)) * pow(BASE, EXPONENT)`, where `FRACTION_WIDTH` is the number of digits in `BASE` within `FRACTION`. All of the individual components are `natural`s, but the overall value may be promoted to a `positive_real` by evaluating it.  
-The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`sqrt`, `pow`, `log<Base>`, `exp`, `ln`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
+The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`pow`, `log(Base)`, `nth_root(N)`, `sqrt = nth_root(2)`, `exp`, `ln = log(e)`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
 `transcendental` constants with their exact value such as `pi`, `tau` and `e` are available. Scalar literals are guaranteed to be lossless, even under complex arithmetic, exponential or trigonometric operations. When losslessness cannot be guaranteed, the evaluation is deferred to the convertion to a non-literal scalar data type. These operations will be printed as-is if requested, without lossy evaluation. This is the only exception to the usually eager evaluation approach of S++.
 
 - The implementation must only have bitwise operators, `+`, `-` and `*` being considered lossless literal operators. The conversion of the result of all others operators to a non-literal scalar must be considered `lossy`, and then force the user to use an explicit `lossy` conversion. Exceptions must not apply even if the result of the operation actually happens to be representable without loss for these operations. This case is assumed to be non-trivial and may cause significant discrepancies among implementations if would be left to their discretion: lossy behavior must be assumed anyway.
@@ -189,11 +183,11 @@ The compile-time literal system should support complex arithmetic operations suc
 
 S++ declares string literals similarly to C++, using double quotes. Example: `"Hello world!"`. This results into a compile-time array of the current character scalar. An encoding keyword can be prepended to the string literal to change its encoding from the current one.
 
-The default encoding is UTF-8 and will produce arrays of `unsigned<8>` (or equivalently, `u8`). The encoding in the current module can be changed using the compile-time command `default_encoding([ENCODING_KEYWORD])`. The full list of available encodings is:
-- `encoding_utf8`: UTF-8, will yield an array of `unsigned<8>` wrapped into a `StringUtf8` object. Access to this object yields `unsigned<32>` code points.
-- `encoding_utf16`: UTF-16, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Access to this object yields `unsigned<16>` code points.
-- `encoding_ucs2`: UCS-2, will yield an array of `unsigned<16>` wrapped into a `StringUtf16` object. Fixed-size characters, the code points are presented as-is in the array.
-- `ascii`: ASCII encoding, will yield an array of `unsigned<8>` wrapped into a `StringAscii` object. Only the ASCII table can be encoded within the literal. Fixed-size characters, the code points are presented as-is in the array.
+The default encoding is UTF-8 and will produce arrays of `unsigned(8)` (or equivalently, `u8`). The encoding in the current module can be changed using the compile-time command `default_encoding([ENCODING_KEYWORD])`. The full list of available encodings is:
+- `encoding_utf8`: UTF-8, will yield an array of `unsigned(8)` wrapped into a `StringUtf8` object. Access to this object yields `unsigned(32)` code points.
+- `encoding_utf16`: UTF-16, will yield an array of `unsigned(16)` wrapped into a `StringUtf16` object. Access to this object yields `unsigned(16)` code points.
+- `encoding_ucs2`: UCS-2, will yield an array of `unsigned(16)` wrapped into a `StringUtf16` object. Fixed-size characters, the code points are presented as-is in the array.
+- `ascii`: ASCII encoding, will yield an array of `unsigned(8)` wrapped into a `StringAscii` object. Only the ASCII table can be encoded within the literal. Fixed-size characters, the code points are presented as-is in the array.
 
 Note that none of these encodings present a null terminating character. The `toNullTerminated` method of these strings should be used to obtain a C (or similar)-compatible string.
 
@@ -247,17 +241,17 @@ a = void	// `a` is `bool | u32 | void` at this point
 ```
 
 The `void` value is similar to `undefined` as they are both symbols which require no storage at runtime (aside from the type identifier), but deviates in its purpose and semantic.
-- `undefined` can only be generated by language semantics from the absence of a binding to a variable, or more generally by the absence of user-defined objects in the usage of the language that could be expected to yield any sort of value. The user cannot assign a variable to `undefined`, as it would violate the requirement of `undefined` meaning zero user-defined type to a variable. However, the user can still generate `undefined` values in general (most likely for type checking, for example).
+- `undefined` can only be generated by language semantics from the absence of a binding to a variable, or more generally by the absence of user definitions in the usage of the language that would otherwise yield any sort of value (for example, a function implicitly returning at end of scope or returning with an empty expression). The user cannot assign a variable to `undefined`, as it would violate the requirement of `undefined` meaning zero user-defined type to a variable. However, the user can still generate `undefined` values in general (most likely for type checking, for example).
 - `void` can only get user-generated. It is the conventional value to denote emptyness. An object of type `T` which may be or may not be defined could be expressed as a `T | void` type. The main practical difference with `undefined` is that the user explicitly assigns `void` to a variable, where `undefined` is the default value that cannot be assigned. The user is expected not to create other symbols that have the same practical usage as `void` and just use `void` instead.
 
 #### 2.3. Evaluation
 
-S++ is a early evaluated language. S++ attempts to evaluate at compile-time every expression, at long at it does not result in implicit data or semantic loss.
+S++ is a eagerly evaluated language. S++ attempts to evaluate at compile-time every expression, at long at it does not result in implicit data or semantic loss.
 
 To achieve that, S++ marks every variable with either a compile-time value during parsing of statements, or a deferred unknown value under circumstances where compile-time evaluation is not reasonably possible. Examples of promotion to deferred evaluation include:
 - Usage of a runtime-defined data, such as reading the keyboard in real-time or acquiring data from a file or the network.
 	- File or network acquisition can be made compile-time using the appropriate compile-time functions such as `compile_file` (which works with a filepath or URL).
-- Usage of not yet provided data in the compilation process: for example using an input variable of a function or template
+- Usage of not yet provided data in the compilation process: for example using an input variable of a function
 	- If such variable happens to be compile-time evaluated, the target variable will be promoted from deferred back to compile-time evaluation.
 
 When a function is invoked from the entry point of an application (at any scope depth), machine code is outputed only for variables for which assignment is still deferred, even after compile-time promotions.
