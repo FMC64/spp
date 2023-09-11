@@ -189,6 +189,8 @@ The default encoding is UTF-8 and will produce arrays of `unsigned(8)` (or equiv
 - `encoding_ucs2`: UCS-2, will yield an array of `unsigned(16)` wrapped into a `StringUtf16` object. Fixed-size characters, the code points are presented as-is in the array.
 - `ascii`: ASCII encoding, will yield an array of `unsigned(8)` wrapped into a `StringAscii` object. Only the ASCII table can be encoded within the literal. Fixed-size characters, the code points are presented as-is in the array.
 
+Both `StringUtf8` and `StringAscii` implement `StringU8NonZero`, which statically guarantees that no `u8` can encodes the code point sequence is zero.
+
 Note that none of these encodings present a null terminating character. The `toNullTerminated` method of these strings should be used to obtain a C (or similar)-compatible string.
 
 ### 2. Scope, assignment and evaluation
@@ -255,3 +257,132 @@ To achieve that, S++ marks every variable with either a compile-time value durin
 	- If such variable happens to be compile-time evaluated, the target variable will be promoted from deferred back to compile-time evaluation.
 
 When a function is invoked from the entry point of an application (at any scope depth), machine code is outputed only for variables for which assignment is still deferred, even after compile-time promotions.
+
+Because deferred evaluation is likely to be the status of most user variables, at least while parsing the program ad hoc and not including instanciations at the entry point, comprehensive analysis is realized to enforce that individual modules of code will perform as expected before invoking them.
+
+### 3. Primitives
+
+#### 3.1. Functions
+
+Functions get declared using the `function` keyword, followed by a `()` enclosed, comma-separated list of arguments, then by optionally the return type, and then by `{}` enclosed sequence of statements. Each function argument consist of an identifier, followed by an optional comma defining the base type of the argument. That base type will then get enriched by invoking the function and binding each argument to a variable. Without any base type specified, the meaning is zero user-defined types (as for non-declared variables) and that then the argument will acquire the exact same type of the variable bound to it at invokation.
+
+```spp
+// `arg0` is of type `u32`, `arg1` is `undefined` and will acquire the type provided on invocation
+aFunction = function(arg0: u32, arg1) dev_u | void {
+	...
+}
+```
+
+Functions are best understood as templates. They do not produce machine code until fully invoked by runtime evaluation. Their arguments can be any primitive of the language.
+
+Function arguments all get bound to their passed variable. Accessing an argument within a function has the exact same effect as accessing it within caller scope. It means that calling a function can enrich the type of passed arguments. In some way, S++ functions can be thought as typed macros for that precise behavior.
+
+Functions can implicitly capture surrouding variables by simply referencing them. Capturing variables using a function puts constraints onto the lifetime of the function with regards to captured variables. Any captured variable must not be destroyed (go out of scope) before the capturing function gets destroyed. Because functions are essentially all inlined, this requirement is rather easy to satisfy, as for example returning a function does not necessarily mean destroying it nor variables that it could have captured.
+
+Functions can be stored and typed. Their type begins with the `function` keyword, followed by a `()` enclosed, comma-separated list of arguments and then must feature the return type. Storing functions does not relax the lifetime requirements of captured variables mentionned in the earlier paragraph.
+
+```spp
+// `deviceIndex` is of type `u32`, `callback` is a function taking a single `deviceEvent` argument and not returning a value.
+listenDevice = function(deviceIndex: u32, callback: function(deviceEvent) undefined) {
+	...
+}
+```
+
+#### 3.2. Arrays
+
+One core feature of S++ is arrays. Arrays are instantiated by specifying the size first, and then the type. In general, S++ syntax is based on the order of expected usage of the primitive, so naturally the type comes last. Arrays have a zero-argument constructor.
+
+```spp
+array = []u32()
+```
+
+Arrays in S++ are preferrably not with their size explicitly defined, except in circumstances where the size is well-known, static, and boundaries must be enforced. In general, it is more conveninent to let the static analysis figure out the largest size necessary. If static analysis declares the array unbounded, then runtime code generation is impossible.
+
+There are two phases in using arrays with runtime size:
+- 1. Back-insertion
+- 2. Reading and writing into the array
+
+Back-insertion is made by using the `<<` operator on the array on the left and the value to insert on the right. On the first read or write into the array, the back-insertion phase completes. A range for the maximum and minimum size of the array is issued. No more back-insertions are allowed. Indices for reading and writing are statically analysed and enforced to fit within the determined range of the minimum size of the array.
+
+As for arrays with explicitly defined, compile-time boundaries, the two phases are:
+- 1. Initialization
+- 2. Reading and writing into the array
+
+The intialization phase completes at the first read into the array. Every member of the defined range must have been initialized when the initialization phase completes.
+
+Defining an explicit runtime boundary on an array is illegal. Back-insertion patterns allowing array size inferrence must be used for runtime array sizes.
+
+#### 3.3. Objects
+
+Objects like instances of `class`, `struct` or `sequence` get instantiated by calling their constructor (i.e. calling the type name) and their members accessed using the `.` operator.
+
+##### 3.3.1 Sequences
+
+Sequences get defined using the `sequence` keyword, followed by the constructor arguments (similarly to a function arguments declaration), followed by `implements` or `extends` keywords to build upon another object type. The sequence itself is declared much like a function body which scope can be externally accessed. The default visibility attribute for sequence scopes is `public`.
+
+```spp
+payloadGroup = sequence(argExtendedFlags: u32 | void, argRegister: u32 | void) {
+	hasExtendedFlags = argExtendedFlags != void
+	hasRegister = argRegister != void
+
+	if (hasExtendedFlags) {
+		extendedFlags = argExtendedFlags
+	}
+	if (hasRegister) {
+		register = argRegister
+	}
+}
+```
+
+A sequence can be thought of as a function which gets run once at construction, then has its scope retrieved and presented for subsequent reads and writes. Sub-scopes guarded by a conditional are mixed into the sequence scope only if the predicate can be evaluated exclusively from the sequence scope and captured compile-time variable. All other scopes are discarded, their contents destroyed at constructor completion and will not be subsequently presented.
+
+It is illegal to perform a sequence write that would modify its structure and layout. All other writes are permitted. As for functions, captures are allowed with the same lifetime conditions.
+
+A sequence can safely represent complex objects in memory, as for example C strings. Here is an example of a constructor of a C string from a generic `u8`-composed string:
+
+```spp
+CString = sequence(source: StringU8NonZero) {
+private:
+	isZero = function(char: u8) {
+		return char == 0
+	}
+
+	// `present` means the instance gets accessed first as `data` then falls back to the sequence itself
+	// The function passed as argument checks if the passed member of the array marks the end of the array
+	// `present` overrides the current visibility attribute (here, `private`) to make the member always accessible
+	present data = [isZero]u8
+
+	for (char : source) {
+		data << char
+	}
+	// It must be statically analysed that the last back-inserted member of the array will satisfy
+	// the end-of-array function `isZero`, and that each previous member do not.
+	data << 0
+}
+```
+
+Such `CString` can then be iterated over using a `for` loop for example, which will yield each character in the `data` member of the `sequence`, not including the null terminating character.
+
+##### 3.3.2 Structs
+
+Structs are similar to `sequence`s, except of course that their keyword is `struct`. The default visibility attribute for struct scopes is `public`.
+
+Structs cannot embed any runtime variable-size member inside of them. The exact layout of a given `struct` must be unique for every possible instance and known at compile-time. That means that member arrays which size depends on a runtime value or on a constructor argument are not allowed inside a `struct`. More obviously, a struct scope cannot be enriched by any conditional scope as well. A struct can still capture variables and is subject to the same lifetime requirements as `function`s and `sequence`s.
+
+Structs match 1-to-1 C++ `struct`s layout, except of course that they cannot represent pointers or references. By the capture exception on `struct` layout variability, S++ allows the user to define parameterized structs through a compile-time function:
+
+```spp
+structWithArray = function(T, N: dev_u) {
+	return struct(defaultValue: T) {
+		array = [N]T()
+
+		for (i : count(N)) {
+			array[i] = defaultValue
+		}
+	}
+}
+```
+
+##### 3.3.3 Classes
+
+Classes share every attribute of `struct`s, except that their keyword is `class` and that the default visibility attribute for class scopes is `private`.
