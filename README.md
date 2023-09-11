@@ -264,7 +264,7 @@ Because deferred evaluation is likely to be the status of most user variables, a
 
 #### 3.1. Functions
 
-Functions get declared using the `function` keyword, followed by a `()` enclosed, comma-separated list of arguments, then by optionally the return type, and then by `{}` enclosed sequence of statements. Each function argument consist of an identifier, followed by an optional comma defining the base type of the argument. That base type will then get enriched by invoking the function and binding each argument to a variable. Without any base type specified, the meaning is zero user-defined types (as for non-declared variables) and that then the argument will acquire the exact same type of the variable bound to it at invokation.
+Functions get declared using the `function` keyword, followed by a `()` enclosed, comma-separated list of arguments, then by optionally the return type, and then by `{}` enclosed sequence of statements. Each function argument consist of an identifier, followed by an optional comma defining the base type of the argument. That base type will then get enriched by invoking the function and binding each argument to a variable. Without any base type specified, the meaning is zero user-defined types (as for non-declared variables) and that then the argument will acquire the exact same type of the variable bound to it at invocation.
 
 ```spp
 // `arg0` is of type `u32`, `arg1` is `undefined` and will acquire the type provided on invocation
@@ -336,7 +336,7 @@ payloadGroup = sequence(argExtendedFlags: u32 | void, argRegister: u32 | void) {
 
 A sequence can be thought of as a function which gets run once at construction, then has its scope retrieved and presented for subsequent reads and writes. Sub-scopes guarded by a conditional are mixed into the sequence scope only if the predicate can be evaluated exclusively from the sequence scope and captured compile-time variable. All other scopes are discarded, their contents destroyed at constructor completion and will not be subsequently presented.
 
-It is illegal to perform a sequence write that would modify its structure and layout. All other writes are permitted. As for functions, captures are allowed with the same lifetime conditions.
+It is illegal to perform a sequence write that would modify its structure and layout. All other writes are permitted. As for functions, captures are allowed with the same lifetime conditions. `sequence` assignment results in the copy of the contents of the `sequence`.
 
 A sequence can safely represent complex objects in memory, as for example C strings. Here is an example of a constructor of a C string from a generic `u8`-composed string:
 
@@ -386,3 +386,184 @@ structWithArray = function(T, N: dev_u) {
 ##### 3.3.3 Classes
 
 Classes share every attribute of `struct`s, except that their keyword is `class` and that the default visibility attribute for class scopes is `private`.
+
+### 4. Static analysis
+
+S++ relies heavily on static analysis to enforce safe behavior. Static analysis is performed on each deferred or runtime executed statement (compile-time values by definition, do not need analysis). Static analysis happens in two consecutive phases:
+- 1. Type set evaluation and inference of the set of possible values at each assignment and conditional, along with statement execution count deduction in parametrized scope
+- 2. Statement execution count usage
+
+Phase 1. is used to narrow down the state of variables at each statement of the program, for futher analysis and scalar boundary checking.  
+Phase 2. is necessary in circumstances where the execution count of a specific statement needs to be evaluated. For example, runtime-sized arrays need to compute how many times does the back-insertion statement gets executed at most, to properly allocate the buffer at variable declaration. This phase relies on the analysis of phase 1. and iterator analysis usage to output a range of array size.
+
+#### 4.1. Type set/possible value set/iterator analysis
+
+At each assignment of a value to a given variable, its type gets enriched with that possibly new type being added to the set of possible types. This was already discussed at section 2.2. Moreover, at each assignment of a variable and until new assignement, the possible set of values is determined, only valid for the scope where the variable is available onwards. A mix of boolean algebra and arithmetic is performed to deduct these sets.
+
+Conditional blocks will narrow down the possible assigned values of a variable. A subset of possibly assigned values will be available on top of the conditionally executed scope and discarded at the end of the scope. This is contrary to assignments for which possible value set will persist afterwards and until variable destruction or new assignment. Conditional blocks narrowing-down are localised to their scope where assignments are localised to the variable scope. Both rules are relatively intuitive in their behavior.
+
+```spp
+// Assume `N` in scope, and is a `natural`
+N: natural
+
+f = function(x: natural) {
+	// At this point in analysis, `0 <= x < +inf` (`natural` definition, would be `unknown` with `x` as `undefined`)
+
+	if (x >= 0 && x < N) {
+		// `0 <= x < N` (intersection of assigned `0 <= x < +inf` and checked `0 <= x < N`)
+
+		// Statements not assigning `x`
+		...
+	} else {
+		// `x >= N` (intersection of assigned `0 <= x < +inf` and checked `x >= N`)
+
+		// Statements not assigning `x`
+		...
+	}
+
+	// At this point, `x` is back to `0 <= x < +inf` as we are outside of any conditional
+
+	if (x >= 0 && x < N * 2) {
+		// `0 <= x < N * 2`
+		x = N / 2
+	} else {
+		// `x >= N`
+		x = 0
+	}
+
+	// `x = N / 2 | x = 0`
+}
+```
+
+Iterators which depend on compile-time values get fully unrolled to a sequence of scopes. Deferred iterators produce an evaluated range of iteration count as well as a range of iterator variable value overall. Past the iterator, assigned variables have a range of possible values being the union of their possible values at each exit point of the iterator and possibly also unioned with the range of possible values before the iterator if zero iteration is possible.
+
+```spp
+// `count` is builtin, but presented here for completeness
+count = function(max: natural) {
+	`0 <= max < +inf`
+
+	// `i = 0`, `1` time
+	i = 0
+	while (i < max) {
+		// `max` iterations
+
+		// `0 <= i < max`
+		yield i
+
+		// `0 <= i <= max`
+		i += 1
+	}
+}
+
+f = function(x: natural, max: natural) {
+	// `0 <= x < +inf`
+
+	// `x = 5`
+	x = 5
+
+	for (i : count(max)) {
+		// Analysis of iterator `count` invocation:
+		// `max` iterations, and  `0 <= i < max`
+
+		if (i & 1 == 0) {
+			`5 <= x < 5 + max`
+			x += 1
+		}
+	}
+
+	// `5 <= x <= 5 + max`
+}
+```
+
+From a lower-level perspective, the actual analysed code is the following, as the iterator is simply inlined:
+
+```spp
+f = function(x: natural, max: natural) {
+	// `0 <= x < +inf`
+
+	// `x = 5`
+	x = 5
+
+	// `__count__i = 0`, `1` time
+	__count__i = 0
+
+	while (i < max) {
+		if (__count__i & 1 == 0) {
+			x += 1
+		}
+
+		__count__i += 1
+
+		// `__count__i` gets incremented with `1` units at each iteration
+		// Given that `__count__i = 0` before the iterator, it means `max` iterations
+		// Range of `__count__i` is then: `0 <= __count__i < max`
+	}
+
+	// `5 <= x <= 5 + max`
+}
+```
+
+Let's assume that the caller of the iterator does actually modify the iterator conditionally, with a more baroque first value:
+
+```spp
+f = function(x: natural, max: natural) {
+	// `0 <= x < +inf`
+
+	// `x = 5`
+	x = 5
+
+	// `__count__i = 2`, `1` time
+	__count__i = 2
+
+	while (i < max) {
+		if (__count__i & 1 == 0) {
+			x += 1
+			__count__i += 2
+		}
+
+		__count__i += 1
+
+		// `__count__i` gets incremented with `1` to `3` units at each iteration
+		// Given that `__count__i = 2` before the iterator, it means at least `ceil((max - 2) / 3)` and at most `max - 2` iterations
+		// Range of `__count__i` is then: `2 <= __count__i < 2 + (max - 2) * 3`
+		// `__count__i` cannot be assigned in a sub-iterator or else this analysis fails.
+	}
+
+	// `5 <= x <= 5 + max`
+}
+```
+
+Finally, let's see a two-dimensionnal approach with zero-based iterators:
+
+```spp
+f = function(x: natural, width: natural, height: natural) {
+	// `0 <= x < +inf`
+
+	// `x = 5`
+	x = 5
+
+	for (i : count(height)) {
+		// `height` iterations, `0 <= i < height`
+
+		for (j : count(width)) {
+			// `width` iterations, `0 <= j < width`
+
+			// Overall this is executed `height * width` times
+			x++
+		}
+	}
+
+	// `x = 5 + height * width`
+}
+```
+
+The sub-iterator `count(width)` is ignored for first-level iterator `count(height)` analysis, as `i` is not assigned within the sub-iterator. If `i` was to be assigned within the sub-iterator, both iterators analysis would fail.  
+The iterator analysis system only supports strictly increasing natural iterators.
+
+When the analysis resolves to a set of possible values with a single value in it, the implementation will not prune full runtime code with every iterator out and instead replace it with the inferred expression. Useless code removal is considered expensive to perform and the user should know better. The user is expected to use that presented analysis to identify and remove useless code themselves. No warning will be issued by the S++ compiler, as the accurate relevancy of some piece of code would have needed to be evaluated at that point, which is virtually equivalent to performing useless code removal to begin with.
+
+#### 4.2. Statement execution count usage and analysis leverage
+
+Using the comprehensive analysis discussed in 4.1., runtime-sized arrays can be figured out. The sum of every back-insertion execution maximum count is performed, which gives the upper limit of elements for the array. The type in the array also has a maximum size required to be stored memory. The actual number of bytes allocated for the runtime-sized array is the maximum size of the array multiplied by the maximum size of the array element.
+
+In general, access to arrays is checked using the deducted range of the index. The index must be strictly within the minimum size of the array. Iterating over the full size of the array is always permitted, but the user should understand it is not a reasonable way of providing index access between the minimum size and the maximum size. The language and deduction capabilities should be improved so that the minimum size doesn't get underestimated in these use-cases prompting for extended index support.
