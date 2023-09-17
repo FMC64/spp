@@ -60,29 +60,29 @@ transcendental = interface extends scalar;
 bool = class implements scalar;
 
 // Signed two's complement integer with bit count `N`
-signed = function(N: host_unsigned): class implements integer;
+signed = function(N: compile_time host_unsigned) class implements integer;
 
 // Unsigned integer with bit count `N`
-unsigned = function(N: host_unsigned): class implements natural;
+unsigned = function(N: compile_time host_unsigned) class implements natural;
 
 // Signed two's complement fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
 // A single bit from `IntegerBitCount` will be used to store the sign
-fixed_signed = function(IntegerBitCount: host_unsigned, FractionalBitCount: host_unsigned) class implements real;
+fixed_signed = function(IntegerBitCount: compile_time host_unsigned, FractionalBitCount: compile_time host_unsigned) class implements real;
 
 // Unsigned fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
-fixed_unsigned = function(IntegerBitCount: host_unsigned, FractionalBitCount: host_unsigned): class implements positive_real;
+fixed_unsigned = function(IntegerBitCount: compile_time host_unsigned, FractionalBitCount: compile_time host_unsigned) class implements positive_real;
 
 // IEEE 754 float with bit count `N`
-ieee754_float = float = function(N: host_unsigned): class implements real
+ieee754_float = float = function(N: compile_time host_unsigned): class implements real
 
 // Used by `minifloat`
-unsigned_minifloat = function(ExponentSize: host_unsigned, MantissaSize: host_unsigned, ExponentBias: host_unsigned): class implements positive_real;
+unsigned_minifloat = function(ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) class implements positive_real;
 
 // Used by `minifloat`
-signed_minifloat = function(ExponentSize: host_unsigned, MantissaSize: host_unsigned, ExponentBias: host_unsigned): class implements real;
+signed_minifloat = function(ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) class implements real;
 
 // General-purpose float
-minifloat = function(IsSigned: bool, ExponentSize: host_unsigned, MantissaSize: host_unsigned, ExponentBias: host_unsigned) {
+minifloat = function(IsSigned: compile_time bool, ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) {
 	if (IsSigned)
 		return unsigned_minifloat(ExponentSize, MantissaSize, ExponentBias);
 	else
@@ -283,7 +283,7 @@ Functions can be stored and typed. Their type begins with the `function` keyword
 
 ```spp
 // `deviceIndex` is of type `u32`, `callback` is a function taking a single `deviceEvent` argument and not returning a value.
-listenDevice = function(deviceIndex: u32, callback: function(deviceEvent) undefined) {
+listenDevice = function(deviceIndex: u32, callback: function(deviceEvent)) {
 	...
 }
 ```
@@ -372,7 +372,7 @@ Structs cannot embed any runtime variable-size member inside of them. The exact 
 Structs match 1-to-1 C++ `struct`s layout, except of course that they cannot represent pointers or references. By the capture exception on `struct` layout variability, S++ allows the user to define parameterized structs through a compile-time function:
 
 ```spp
-structWithArray = function(T, N: dev_u) {
+structWithArray = function(T: type, N: compile_time dev_u) {
 	return struct(defaultValue: T) {
 		array = [N]T()
 
@@ -570,11 +570,11 @@ In general, access to arrays is checked using the deducted range of the index. T
 
 ### 5. Stacks
 
-All runtime objects can be allocated on the execution stack. The execution stack can grow to a large extent: stack address bit count is configured on the entry point of the process, and can take up to the vast majority of the adress space for the most extreme applications. This should account for a large amount of practical use-cases. However, once allocated, this space is obviously static and there is no reasonable way to dynamically extend an array previously allocated and initialized. S++ presents ways to easily allocate arrays of the arbitrarily correct size for the purpose of immediatly using it, but no mean to accomodate for future unpredictable size requirements.
+All runtime objects can be allocated on the execution stack. The execution stack can grow to a large extent: stack address bit count is configured on the `entry_point` of the process, and can take up to the vast majority of the adress space for the most extreme applications. This should account for a large amount of practical use-cases. However, once allocated, this space is obviously static and there is no reasonable way to dynamically extend an array previously allocated and initialized. S++ presents ways to easily allocate arrays of the arbitrarily correct size for the purpose of immediatly using it, but no mean to accomodate for future unpredictable size requirements.
 
 This is a realistic need that is encountered by most applications that run indefinitely and manage arbitrarily large amounts of data. Even purely processing applications often need dynamic working space that can be readily extended on demand. In traditional execution environments, this need is commonly addressed by a continuous, extensible chunk of memory called the "heap". The heap manages a collection of chunks of memory, which is left to the allocator discretion.
 
-The heap usually brings two issues that are usually not reasonable to definitely solve in a cheap manner, assuming any general-purpose allocator:
+The heap usually brings two issues that are usually not reasonably definitely solved in a cheap manner, assuming any general-purpose allocator:
 - Potentially very expensive and unpredictable allocation execution time. There is no telling how much time will be needed to allocate a certain chunk of memory. The allocator may need to walk through a large portion of the heap to find suitable available segments of memory. This is unacceptable in most real-time scenarios. As the heap gets fragmented through the application lifetime, allocation times get more and more unpredictable going forward.
 - Potentially low data locality. There is no reasonable way of enforcing that two distincts chunks of memory stay as close as possible in the addressing space. As the application goes on and fragmentation increases, it's very likely that two allocations made at different points in time will be separated from each other in memory. In some real-time scenarios with significant stress, this will make the overall performance non-deterministic. Even the random delays incurred by seemingly random cache misses may prove unacceptable given the requirements.
 
@@ -586,3 +586,48 @@ S++ proposes no heap, but instead a system permitting the allocation of stacks w
 On top of it, stacks are suitable to have a new concept of "segments" allocated on top of them. Each segment has its beginning address aligned with its size (which must be a power of 2), and can contain objects which hold special "short" references, which are very compact indices whithin the segment. Objects containing short references must be allocated in-place within a segment (which can be seen as fixed-sized stacks) of the same size than the exact addressing capability of the reference in question.
 
 S++ also proposes "long" references which can, within a particular stack, reference any object present in the current stack or any other one. Long references usually need to store a full address and are then considered expensive. S++ provides means to enforce that no reference, either long or short, can be left "dangling" (i.e. the underlying object gets destroyed before the reference does), majorly by using static analysis of stack sections (which have been "split"). Said stack sections control the lifetime of objects they hold, and then tracking their lifetime compared to the one of references pointing to them is sufficient. References and objects can be abstracted away in their lifetime by the stack segment they are allocated into.
+
+#### 5.1. Stack creation
+
+A new stack can be allocated by contructing a `stack` object:
+
+```spp
+// `AddressBitCount` is the range of virtual memory to allocate for the stack, only limited by total virtual memory space
+// `T` is the type of objects that can be allocated on top of the stack: any `type` is acceptable, including the ones with multiple possibilities
+stack = class(AddressBitCount: compile_time dev_u, T: type) {
+public:
+	// Iterate through the current sub-stack from the base to the top,
+	// return `false` to stop iterating
+	iterate = function(handler: function(value: T) bool);
+
+	// Get the long reference class
+	// The result `present`s the underlying referenced value,
+	// making using the reference roughly equivalent to directly using the underlying value
+	// Instantiate the resulting class, passing a value stored in `this`, to keep a reference of such value.
+	// The stack producing this reference type must not be destroyed before any instance of the reference:
+	// this is statically asserted by the compiler.
+	ref = function(ToRefType: type) class;
+
+
+	// Methods below can be called only if the stack top is currently owned by `this`
+
+	// Allocate `value` on top of the stack, and get a reference to that placed value within the stack
+	<< = function(value: T) ref(T);
+
+	// Split the stack, the return value now owns the stack top (which becomes its stack base) until destroyed
+	// At return value destruction, the stack top of `this` is the same as it was when `split` was called
+	// Even if `SubT == T`, `this.iterate` will still stop before the result base
+	split = function(SubT: type = T): compile_time stack;
+
+	// Return all physical memory past the top to the runtime
+	trim = function();
+}
+```
+
+The argument `AddressBitCount` specifies the maximum size of the allocated stack, and will result in that addressing space being fully allocated for that `stack`. Note that the actual physical addressing space should not be fully allocated if virtual addressing is available on the device. The pages or segments not yet allocated should be marked so that an interruption is generated on an access on these ranges, resulting in the runtime physically allocating the accessed pages on the fly. A binary exponential allocation strategy is recommended, starting with a single page and doubling at each range access missing the physical memory. Exponentiation bases smaller than 2 are permitted on platforms where physical memory is limited, at the cost of more frequent runtime interventions and less trivial allocation size computation.
+
+Overally, the `AddressBitCount` only indicates the range of virtual memory to allocate for the stack. The application should make sure that range is generous and reasonably not ever filled all the way. The total available virtual memory range is perhaps quite a lot less plentiful than one may imagine: for example the AMD64 architecture only relies on a minimum of 48 bits of virtual addressing space, despite having 64 bits wide registers. That would mean, assuming the entire addressing space is filled with 4GiB stacks with no overhead, that "only" 65536 of these stacks could be allocated at any time inside a single process. The S++ implementation must determine the location of each stack at compile-time and issue an error if the application exceeds the addressable space available onto the device. Applications are expected to generously overestimate the required address space for the vast majority of use-cases, and to get ported to specific platforms with more aggressive memory allocation strategies if necessary. Conventional tools to generate more portable `AddressBitCount`s will be discussed in the future, possibly removing this argument to `stack` and replacing it with a more abstract enumeration value of some sort.
+
+A stack can be split into sub-stacks, allowing the destruction of continuous segments of the stack by droppping the sub-stack handle. Dropping a sub-stack handle does not result into the physical memory being released back to the runtime, the explicit `trim` method should be called onto the top stack handle to deallocate the pages.
+
+Any object of the supplied type `T` can be allocated on top of the stack to make it grow. The allocated space can only be released by destroying the sub-stack the object has been allocated onto.
