@@ -162,17 +162,17 @@ Futhermore, literals are in two sets: binary fixed-point unsigned integers and p
 
 Let's explore how to express a positive literal (a negative one is defined by using the prefix `-` unary operator):
 
-The general notation is `*([BASE])([FRACTION].)[INTEGER](x[EXPONENT])`, where:
+The general notation is `*([BASE])([FRACTION].)[INTEGER](x(-)[EXPONENT])`, where:
 - `([BASE])` is decimal if not supplied, or may be `0h` for hexadecimal notation, `0o` for octal, `0q` for base-4 and `0b` for binary
 - `([FRACTION].)` is the fractional part of the literal if the literal needs to be fractional, represented in the selected base. As this is little-endian, the fractional part starts off with the least significant digit to end with the digit right under the point in weight. There is no limit to the size of this part.
 - `[INTEGER]` is the mandatory section of the literal, represented in the selected base. Starts with the least significant digit to end with the most significant digit. There is no limit to the size of this part but must feature at least a single digit.
-- `(x[EXPONENT])` is the optional exponent of the overall literal, which defaults to zero. The conventional `e` is not used, as it is reserved for hexadecimal (you read that right, you can exponentiate hexadecimal literals). The exponent follows the selected base. Useful to represent large numbers without any trouble.
+- `(x(-)[EXPONENT])` is the optional exponent of the overall literal, which defaults to zero. The conventional `e` is not used, as it is reserved for hexadecimal (you read that right, you can exponentiate hexadecimal literals). The exponent follows the selected base. Useful to represent large numbers without any trouble.
 
-In `arabic` notation, the general notation is `([BASE])INTEGER(.[FRACTION])(x[EXPONENT])`.
+In `arabic` notation, the general notation is `([BASE])INTEGER(.[FRACTION])(x(-)[EXPONENT])`.
 
 Note that each digit sequence can contain a `_` which will get ignored while parsing. These characters can be inserted to increase readability of the literal.
 
-The value of the literal (which is also the internal representation) is `(INTEGER + FRACTION * pow(BASE, -FRACTION_WIDTH)) * pow(BASE, EXPONENT)`, where `FRACTION_WIDTH` is the number of digits in `BASE` within `FRACTION`. All of the individual components are `natural`s, but the overall value may be promoted to a `positive_real` by evaluating it.  
+The value of the literal (which is also the internal representation) is `(INTEGER + FRACTION * pow(BASE, -FRACTION_WIDTH)) * pow(BASE, EXPONENT_SIGN * EXPONENT)`, where `FRACTION_WIDTH` is the number of digits in `BASE` within `FRACTION`. All of the individual components are `natural`s, but the overall value may be promoted to a `positive_real` by evaluating it.  
 The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`pow`, `log(Base)`, `nth_root(N)`, `sqrt = nth_root(2)`, `exp`, `ln = log(e)`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
 `transcendental` constants with their exact value such as `pi`, `tau` and `e` are available. Scalar literals are guaranteed to be lossless, even under complex arithmetic, exponential or trigonometric operations. When losslessness cannot be guaranteed, the evaluation is deferred to the convertion to a non-literal scalar data type. These operations will be printed as-is if requested, without lossy evaluation. This is the only exception to the usually eager evaluation approach of S++.
 
@@ -848,7 +848,6 @@ Note that because each created thread actually needs to create a new execution s
 Threads can capture any compile-time value very much like a `function` can do. Threads can also capture runtime variables, but only the ones wrapped around a `concurrently` object:
 
 ```spp
-
 someConstant = 314
 
 // `concurrently` takes a `type` as argument,
@@ -877,6 +876,8 @@ Threads incur a little cute exception in language to `stack`s. Stacks (including
 - Easy-to-use low-latency inter-thread signals (effectively what `std::condition_variable` allows the user to do)
 - Boost-like `io_context` thread to perform asynchronous work of asynchronously-oriented applications
 - `async` feature in the spirit of ECMAScript's `Promise`s
+- Primitives to handle endianness, such conversions in files, along with unique version specification
+	- Probably a all-in-one package to serialize S++ runtime primitives
 
 ## Current implementation status
 
