@@ -759,40 +759,61 @@ Circular dependencies are illegal in S++. A module cannot implicitly import itse
 
 To actually produce an executable and run it, the S++ file defining the module `export`ing exactly one `entry_point` must be invoked.
 
-`entry_point` is a builtin compile-time function as follows:
+`entry_point` is a builtin keyword that can be used as follows to create an entry-point:
 
 ```spp
-entry_point = function(MainStackAddressBitCount: compile_time dev_u, entryPointFunction: function(args: ...));
+// Any compile-time `dev_u` can directly be passed to `entry_point`,
+// here represented for completeness.
+MainStackAddressBitCount: compile_time dev_u
+
+// `args` can be replaced by any number of arguments,
+// the single variable-length argument of type `...` is only shown as a general example.
+// The arguments part can be omitted altogether, which is the same as having zero argument.
+export main = entry_point(MainStackAddressBitCount)(args: ...) {
+	...
+	return some_value
+}
 ```
 
-Any function must be passed to the entry-point, which will be run as the instanciatied process.  
+A scope must be passed to the entry-point, which will be run as the instanciatied process.  
 `MainStackAddressBitCount` define the maximum size of the execution stack for the main thread of the process. The same precautions as required to figure out the size of a manually created `stack` apply here: see `5.2. Stack creation`.
 
 Entry-points of S++ programs are strongly typed, as any other S++ function.  
 S++ programs are expected to raise exceptions using the `throw` keyword to indicate runtime errors.  
 S++ programs can return any runtime-representable value they want, which can then be used by the user invoking the program (probably storing it in a compile-time variable or chaining it as a call to another program).
 
-In a S++ shell, invoking a program defined by a file module happens by calling the loaded path to the file module, containing exactly one exported entry-point:
+In an interactive S++ shell, invoking a program defined by a file module happens by calling the loaded path to the file module, containing exactly one exported entry-point:
 ```spp
 result = load("/path/to/file/module")(arg0, arg1, arg2, ...)
 ```
 
 As for module `import`s, the `.spp` extension must not be indicated. The `.` operator can be used to reference module files relatively to the current working directory.
 
+In a simplified S++ shell, the same behavior can be achieved with:
+```spp
+result = /path/to/file/module arg0 arg1 arg2 ...
+```
+
+The simplified S++ shell is designed to be competitive with popular Unix-like shells such as Bash or Zsh (and friends) in terms of typing speed and operator overhead, while providing comprehensive and accurate code completion on the fly. Tokens usage is inferred on the context, allowing to run a S++ program by simply typing out its module path and providing space-separated arguments. Simplified S++ is meant to be write-only, typed on the fly and takes inspiration from popular functional languages such as Haskell and Lisp. Expressions are parentheses-enclosed and here in particular, strings do not need to have double-quote characters to be written out. When a value from an enum is expected, simplified S++ will happily suggest and accept any identifier which is part of the enum in question. Types (shallowly as well as deeply) referenced by the entry-point arguments are automatically suggested and available in the context of invoking such entry-point. Scalar literals can be inputed exactly like in standard S++.
+
 #### 6.3. Exceptions
 
-Exceptions are a quick way to propagate an error down to an error catcher. To raise an exception, use the `throw` keyword followed by the error value to be raised. Any language object qualifies, but runtime exceptions raisers/catchers must use runtime values only.
+Exceptions are an easy way to propagate an error down to an error catcher. To raise an exception, use the `throw` keyword followed by the error value to be raised. Any language object qualifies, but runtime exceptions raisers/catchers must use runtime values only.
 
-A `try`/`catch` block must be defined to catch an exception:
+A post-scope `catch` scope must be defined to catch an exception:
 
 ```spp
-try {
+{
 	throw "This is a significant error!"
 } catch (error) {
+	// `error` is of type `string_utf8`
+
 	std_out << "Exception caught: " << error << end_line;
-	// Rethrow exception, to terminate the program
+	// Rethrow exception, to propagate it further
 	throw error
 }
 ```
 
-In the spirit of S++, exceptions are caught similarly to the way values are passed to a function. Declaring a `try`/`catch` block in fact acquires any possible type that may be thrown inside the `try` block. A type for the caught value can be declared, that will be enriched by all possible types that can be raised. As for function arguments, a supertype of potential raised types can be explicitly used.
+In the spirit of S++, exceptions are caught similarly to the way values are passed to a function. Declaring a `catch` scope in fact acquires any possible type that may be thrown inside the regular scope. A type for the caught value can be declared, that will be enriched by all possible types that can be raised. As for function arguments, a supertype of potential raised types can be explicitly used.
+
+Exceptions in S++ are best seen as the most powerful control flow feature of the language. They may generate a lot of code for the return path back to the catch scope, so they better be used mindfully. The implementation must minimize code size over performance, ideally by sharing destructor code on a per relevant exception-scope basis.
