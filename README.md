@@ -674,6 +674,8 @@ public:
 }
 ```
 
+Please note that invocations of the `stack` constructor can only be performed by the main thread, not to inhibit static analysis. More info below and at `6.4. Threads & concurrency`.
+
 The argument `AddressBitCount` specifies the maximum size of the allocated stack, and will result in that addressing space being fully allocated for that `stack`. Note that the actual physical addressing space should not be fully allocated if virtual addressing is available on the device. The pages or segments not yet allocated should be marked so that an interruption is generated on an access on these ranges, resulting in the runtime physically allocating the accessed pages on the fly. A binary exponential allocation strategy is recommended, starting with a single page and doubling at each range access missing the physical memory. Exponentiation bases smaller than 2 are permitted on platforms where physical memory is limited, at the cost of more frequent runtime interventions and less trivial allocation size computation.
 
 Overally, the `AddressBitCount` only indicates the range of virtual memory to allocate for the stack. The application should make sure that that range is generous and reasonably not ever filled all the way. The total available virtual memory range is perhaps quite a lot less plentiful than one may imagine: for example the AMD64 architecture only relies on a minimum of 48 bits of virtual addressing space, despite having 64 bits wide registers. That would mean, assuming the entire addressing space is filled with 4GiB stacks with no overhead, that "only" 65536 of these stacks could be allocated at any time inside a single process. The S++ implementation must determine the location of each stack at compile-time and issue an error if the application exceeds the addressable space available onto the device. Applications are expected to generously overestimate the required address space for the vast majority of use-cases, and to get ported to specific platforms with more aggressive memory allocation strategies if necessary. Conventional tools to generate more portable `AddressBitCount`s will be discussed in the future, possibly removing this argument to `stack` and replacing it with a more abstract enumeration value of some sort.
@@ -775,7 +777,7 @@ export main = entry_point(MainStackAddressBitCount)(args: ...) {
 }
 ```
 
-A scope must be passed to the entry-point, which will be run as the instanciatied process.  
+A scope must be passed to the entry-point, which will be run as the instantiated process. Within the scope, any object of the language or defined using the language can be used.  
 `MainStackAddressBitCount` define the maximum size of the execution stack for the main thread of the process. The same precautions as required to figure out the size of a manually created `stack` apply here: see `5.2. Stack creation`.
 
 Entry-points of S++ programs are strongly typed, as any other S++ function.  
@@ -808,7 +810,7 @@ A post-scope `catch` scope must be defined to catch an exception:
 } catch (error) {
 	// `error` is of type `string_utf8`
 
-	std_out << "Exception caught: " << error << end_line;
+	std_out << "Exception caught: " << error << end_line
 	// Rethrow exception, to propagate it further
 	throw error
 }
@@ -817,3 +819,65 @@ A post-scope `catch` scope must be defined to catch an exception:
 In the spirit of S++, exceptions are caught similarly to the way values are passed to a function. Declaring a `catch` scope in fact acquires any possible type that may be thrown inside the regular scope. A type for the caught value can be declared, that will be enriched by all possible types that can be raised. As for function arguments, a supertype of potential raised types can be explicitly used.
 
 Exceptions in S++ are best seen as the most powerful control flow feature of the language. They may generate a lot of code for the return path back to the catch scope, so they better be used mindfully. The implementation must minimize code size over performance, ideally by sharing destructor code on a per relevant exception-scope basis.
+
+#### 6.4. Threads & concurrency
+
+There is no way around it: S++ must provide builtin concurrency support.
+
+S++ proposes race-condition free primitives, so that not only S++ stays memory-safe, but also keeps the user out of concurrency trouble.  
+The base primitive of S++ to achieve that is the `thread`, which are created like so:
+
+```spp
+// Any compile-time `dev_u` can directly be passed to `entry_point`,
+// here represented for completeness.
+MainStackAddressBitCount: compile_time dev_u
+
+threadHandle = thread(MainStackAddressBitCount) {
+	// Thread work...
+	...
+}
+
+// Must explicitly `join` the thread before destroying its handle.
+// This is to avoid any confusion as to the possibility of orphaned threads.
+// A S++ program not joining a `thread` going out of scope cannot build.
+threadHandle.join()
+```
+
+Note that because each created thread actually needs to create a new execution stack in the virtual memory space (see `6.2. Entry point`), only the main thread is allowed to create threads. This is to be able to statically infer the required memory layout at any point within the program. Aside from that, there is not much preventing us from spawning threads anywhere we want.
+
+Threads can capture any compile-time value very much like a `function` can do. Threads can also capture runtime variables, but only the ones wrapped around a `concurrently` object:
+
+```spp
+
+someConstant = 314
+
+// `concurrently` takes a `type` as argument,
+// the resulting type can then be constructed
+valueToInc = concurrently(u32)(0)
+
+threadHandle = thread(32) {
+	valueToInc.manipulate(function(value) {
+		for (i : count(someConstant))
+			value += i
+	})
+}
+
+threadHandle.join()
+
+std_out << "Thread result: " << valueToInc.get() << end_line
+```
+
+Similarly to functions, threads must have `join`'d before any captured variable can be destroyed.
+
+Threads incur a little cute exception in language to `stack`s. Stacks (including any sub-stack) cannot be split during the scope of capture by a thread. Aside from that, allocations can be made on top of a stack as usual business, be it from main thread or the spawned thread, as such concurrent access must happen `concurrently` and is then guaranteed safe.
+
+## Next design steps
+
+- Abstract away bit count of stacks, use weight instead and leverage compile-time layout analysis to produce a per-device optimal stack layout
+- Easy-to-use low-latency inter-thread signals (effectively what `std::condition_variable` allows the user to do)
+- Boost-like `io_context` thread to perform asynchronous work of asynchronously-oriented applications
+- `async` feature in the spirit of ECMAScript's `Promise`s
+
+## Current implementation status
+
+- Pending the release of the first revision of the specification
