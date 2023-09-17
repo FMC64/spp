@@ -570,6 +570,8 @@ In general, access to arrays is checked using the deducted range of the index. T
 
 ### 5. Stacks
 
+#### Preamble and discussion around state-of-the-art
+
 All runtime objects can be allocated on the execution stack. The execution stack can grow to a large extent: stack address bit count is configured on the `entry_point` of the process, and can take up to the vast majority of the adress space for the most extreme applications. This should account for a large amount of practical use-cases. However, once allocated, this space is obviously static and there is no reasonable way to dynamically extend an array previously allocated and initialized. S++ presents ways to easily allocate arrays of the arbitrarily correct size for the purpose of immediatly using it, but no mean to accomodate for future unpredictable size requirements.
 
 This is a realistic need that is encountered by most applications that run indefinitely and manage arbitrarily large amounts of data. Even purely processing applications often need dynamic working space that can be readily extended on demand. In traditional execution environments, this need is commonly addressed by a continuous, extensible chunk of memory called the "heap". The heap manages a collection of chunks of memory, which is left to the allocator discretion.
@@ -581,28 +583,35 @@ The heap usually brings two issues that are usually not reasonably definitely so
 Because of these two issues, the most extreme applications often need to have custom allocators to fit their needs and enforce data locality, as general-purpose allocators are usually application-agnostic and unspecialized. A perhaps less brutal solution may be to pool chunks of memory to enforce locality and high-availability, but this also involves implementing an allocator for resources within the pool, not to mention that designing minimal memory and execution overhead can be often challenging for a particular need.
 
 S++ acknowledges that while the heap is a convenient tool for naive and not demanding applications, its structural attributes cannot be reconciled with reliable peak-performance in a general-purpose way.  
-S++ proposes no heap, but instead a system permitting the allocation of stacks with arbitrary addressing spaces, that can grow at a minimal and consistent cost. S++ stacks are memory-safe, and allow the application to allocate objects of an arbitrary type (even complex, polymorphic ones) on top of it. S++ stacks can be split on a current top, and the new section allocated on and safely destroyed by dropping the split handle.
 
-On top of it, stacks are suitable to have a new concept of "segments" allocated on top of them. Each segment has its beginning address aligned with its size (which must be a power of 2), and can contain objects which hold special "short" references, which are very compact indices whithin the segment. Objects containing short references must be allocated in-place within a segment (which can be seen as fixed-sized stacks) of the same size than the exact addressing capability of the reference in question.
+#### 5.1. S++ approach and overview
 
-S++ also proposes "long" references which can, within a particular stack, reference any object present in the current stack or any other one. Long references usually need to store a full address and are then considered expensive. S++ provides means to enforce that no reference, either long or short, can be left "dangling" (i.e. the underlying object gets destroyed before the reference does), majorly by using static analysis of stack sections (which have been "split"). Said stack sections control the lifetime of objects they hold, and then tracking their lifetime compared to the one of references pointing to them is sufficient. References and objects can be abstracted away in their lifetime by the stack segment they are allocated into.
+S++ proposes no heap, but instead a system permitting the allocation of stacks with arbitrary addressing spaces, that can grow at a minimal and consistent cost. S++ stacks are memory-safe, and allow the application to allocate objects of an arbitrary type (even complex, polymorphic ones) on top of it. S++ stacks can be split on a current top of stack, and the new section allocated on it and safely destroyed by dropping the split handle.
 
-#### 5.1. Stack creation
+On top of it, stacks are suitable to have a new concept of "segments" allocated on top of them. Each segment has its beginning address aligned with its size (which must be a power of 2), and can contain objects which hold special "short" references, which are very compact indices within the segment. Objects containing short references must be allocated in-place within a segment (which can be seen as fixed-sized stacks) of the same size than the exact addressing capability of the reference in question.
+
+S++ also proposes "long" references which can, within a particular stack, reference any object present in the current stack or any other one. Long references usually need to store a full address and are then considered memory-expensive. S++ provides means to enforce that no reference, either long or short, can be left "dangling" (i.e. the underlying object gets destroyed before the reference does), majorly by using static analysis of stack sections (which have been "split"). Said stack sections control the lifetime of objects they hold, and then tracking their lifetime compared to the one of references pointing to them is sufficient. References and objects can be abstracted away in their lifetime by the stack segment they are allocated into.
+
+#### 5.2. Stack creation
+
+A `stack` is a runtime-only object. Compile-time objects do not need to use `stack`s, as they are effectively relaxed in their growth, typing opportunities and can do whatever they want. A `stack` is purely a runtime trick to guarantee memory safety and locality on runtime data structures with a complexity vastly superior to the static analysis capabilities. Some amount of analysis is still done on top these concepts, which allows the inferrence of the high-level split section memory structure of the stack to be done.
 
 A new stack can be allocated by contructing a `stack` object:
 
 ```spp
 // `AddressBitCount` is the range of virtual memory to allocate for the stack, only limited by total virtual memory space
 // `T` is the type of objects that can be allocated on top of the stack: any `type` is acceptable, including the ones with multiple possibilities
-stack = class(AddressBitCount: compile_time dev_u, T: type) {
+// `AlignmentBitCount` is the address alignment of the base of the stack. If a stack is created for allocating segments of address bit count `N`,
+// pass at least `N` here to avoid padding insertion.
+stack = class(AddressBitCount: compile_time dev_u, T: type, AlignmentBitCount: compile_time dev_u = default_page_size) {
 public:
 	// Iterate through the current sub-stack from the base to the top,
 	// return `false` to stop iterating
 	iterate = function(handler: function(value: T) bool);
 
-	// Get the long reference class
+	// Get the long reference class. This is guaranteed to take the same space as a `device_unsigned`.
 	// The result `present`s the underlying referenced value,
-	// making using the reference roughly equivalent to directly using the underlying value
+	// making using the reference roughly equivalent to directly using the underlying value.
 	// Instantiate the resulting class, passing a value stored in `this`, to keep a reference of such value.
 	// The stack producing this reference type must not be destroyed before any instance of the reference:
 	// this is statically asserted by the compiler.
@@ -617,7 +626,7 @@ public:
 	// Split the stack, the return value now owns the stack top (which becomes its stack base) until destroyed
 	// At return value destruction, the stack top of `this` is the same as it was when `split` was called
 	// Even if `SubT == T`, `this.iterate` will still stop before the result base
-	split = function(SubT: type = T): compile_time stack;
+	split = function(SubT: type = T): stack;
 
 	// Return all physical memory past the top to the runtime
 	trim = function();
@@ -626,8 +635,47 @@ public:
 
 The argument `AddressBitCount` specifies the maximum size of the allocated stack, and will result in that addressing space being fully allocated for that `stack`. Note that the actual physical addressing space should not be fully allocated if virtual addressing is available on the device. The pages or segments not yet allocated should be marked so that an interruption is generated on an access on these ranges, resulting in the runtime physically allocating the accessed pages on the fly. A binary exponential allocation strategy is recommended, starting with a single page and doubling at each range access missing the physical memory. Exponentiation bases smaller than 2 are permitted on platforms where physical memory is limited, at the cost of more frequent runtime interventions and less trivial allocation size computation.
 
-Overally, the `AddressBitCount` only indicates the range of virtual memory to allocate for the stack. The application should make sure that range is generous and reasonably not ever filled all the way. The total available virtual memory range is perhaps quite a lot less plentiful than one may imagine: for example the AMD64 architecture only relies on a minimum of 48 bits of virtual addressing space, despite having 64 bits wide registers. That would mean, assuming the entire addressing space is filled with 4GiB stacks with no overhead, that "only" 65536 of these stacks could be allocated at any time inside a single process. The S++ implementation must determine the location of each stack at compile-time and issue an error if the application exceeds the addressable space available onto the device. Applications are expected to generously overestimate the required address space for the vast majority of use-cases, and to get ported to specific platforms with more aggressive memory allocation strategies if necessary. Conventional tools to generate more portable `AddressBitCount`s will be discussed in the future, possibly removing this argument to `stack` and replacing it with a more abstract enumeration value of some sort.
+Overally, the `AddressBitCount` only indicates the range of virtual memory to allocate for the stack. The application should make sure that that range is generous and reasonably not ever filled all the way. The total available virtual memory range is perhaps quite a lot less plentiful than one may imagine: for example the AMD64 architecture only relies on a minimum of 48 bits of virtual addressing space, despite having 64 bits wide registers. That would mean, assuming the entire addressing space is filled with 4GiB stacks with no overhead, that "only" 65536 of these stacks could be allocated at any time inside a single process. The S++ implementation must determine the location of each stack at compile-time and issue an error if the application exceeds the addressable space available onto the device. Applications are expected to generously overestimate the required address space for the vast majority of use-cases, and to get ported to specific platforms with more aggressive memory allocation strategies if necessary. Conventional tools to generate more portable `AddressBitCount`s will be discussed in the future, possibly removing this argument to `stack` and replacing it with a more abstract enumeration value of some sort.
 
-A stack can be split into sub-stacks, allowing the destruction of continuous segments of the stack by droppping the sub-stack handle. Dropping a sub-stack handle does not result into the physical memory being released back to the runtime, the explicit `trim` method should be called onto the top stack handle to deallocate the pages.
+The application should expect the runtime to reserve at least a single page of virtual memory after the virtual memory range of each stack, in order to detect stack overflows and then protect the application from undefined behavior. The runtime guarantees that each stack base is aligned on a page of virtual memory.
 
-Any object of the supplied type `T` can be allocated on top of the stack to make it grow. The allocated space can only be released by destroying the sub-stack the object has been allocated onto.
+A stack can be split into sub-stacks, allowing the destruction of continuous segments of the stack from the top by droppping the sub-stack handle. Dropping a sub-stack handle does not result into the physical memory being released back to the runtime, the explicit `trim` method should be called onto the top stack handle to deallocate the pages.
+
+Any object of the supplied type `T` can be allocated on top of the stack to make it grow. The allocated space can only be released by destroying the sub-stack the object has been allocated onto. Sub-stacks are hierarchical by nature: sub-stacks get defined by splitting the top sub-stack, the overall stack grows object by object on the top sub-stack and the overall stack "pops" by destroying top sub-stacks. This matches 1-to-1 the lifecycle of sub-stacks as inferred by their appearance in scope and their scope end-of-definition.
+
+#### 5.3. Segments
+
+The purpose of segments is to define a localized address space which can be addressed using relatively short opaque scalars (called "indices" here). A `segment` is a parametrized type that takes as argument the number of bits of the address space:
+
+```spp
+__segment_methods = interface {
+	// Get the short reference class. This is guaranteed to take the same space as a `unsigned(AddressBitCount)`.
+	// The result `present`s the underlying referenced value,
+	// making using the reference roughly equivalent to directly using the underlying value.
+	// Instantiate the resulting class, passing a value stored in `this` (segment), to keep a reference of such value.
+	// This reference must be stored in the same segment that produced it.
+	ref = function(ToRefType: type) class;
+
+	// Returns whether or not a value could fit within the remaining stack
+	// This must be explicitly called if the compiler cannot statically assert
+	// that a value would fit within the segment, then making the assertion at
+	// runtime. It is not possible to compile code that does not assert that a certain
+	// value would fit within the segment.
+	canAllocate(value: T) bool;
+
+	// Allocate `value` at the end of used space within the segment,
+	// and get a reference to that placed value within the stack
+	<< = function(value: T) ref(T);
+}
+
+segment = function(AddressBitCount: compile_time dev_u) class implements __segment_methods;
+```
+
+Contrary to `stack`, `AddressBitCount` does not indicate a potential maximum size but the full size of the `segment` at allocation. In addition to that, `segment`s are always aligned on their size. This allows trivial addressing from only an address within the segment and the index from the beginning of the segment (also knowing the size of the segment at compile-time).
+
+`segment`s can be created in any context: on the execution stack, at compile-time, on any `stack`, ...  
+In general, segments of a certain address width for a particular purpose should be allocated on a dedicated `stack` with the alignement being at least the segment's `AddressBitCount` only. Because of the alignment requirement, padding will probably be introduced in these other contexts. This padding costs memory that will not be promoted to anything else, because the user is expected to know better. Segment allocation results in checking whether the allocated segment would fit in its designated storage location, which has a slight runtime cost.
+
+The short references that are created within segments can only be dereferenced when stored on the same referenced segment. Storing these short references anywhere else (temporarily) is permitted, but they won't be dereferenceable from there. Short references stored inside a segment are assumed to be correct, and short references from another segment cannot be stored within a segment.
+
+Overall, segments are a safe way to produce complex memory structures with low pointer memory overhead.
