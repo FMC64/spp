@@ -23,3 +23,11 @@ More importantly, S++ is more of an experimental language where simplicity of th
 ## Specification
 
 You will find a reasonably precise specification of the S++ language [here](SPECIFICATION.md).
+
+
+## Current implementation status
+
+This list is a timeline starting from the most recent event to the oldest one.
+
+- **9/24/2023**: First revision is acceptable for the moment. Beginning C++ pre-alpha bootstrapping.
+- **9/7/2023**: Pending the release of the first revision of the specification

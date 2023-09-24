@@ -1,5 +1,10 @@
 # The S++ programming language specification
 
+This specification is in three (3) parts:
+- 1. [Addendum](#0-early-stage-addendums): pending parts of the specification, likely for proper insertion within the document. Still canonical and up-to-date. Can move around a bit.
+- 2. [Core specification](#1-builtin-data-types): the main structure of the specification. The most stable part yet.
+- 3. [Next design steps](#next-design-steps): what should come next in this document. Subject to change at any moment.
+
 ## 0. Early-stage addendums
 
 This specification covers most of the specificities to S++ and design choices, so that a reasonble person could provide an implementation also based on the precedent that the closest programming languages (C++, TypeScript, Ruby) did set. This section lists areas not yet integrated into the specification that are not specific enough to be listed yet, but not obvious enough that they shall not be mentionned at all. Or simply parts of the specification for which their location is not determined yet. The reader is expected to be familiar with [the rest of this document](#1-builtin-data-types) before reading section 0.
@@ -330,7 +335,7 @@ S++ is a eagerly evaluated language. S++ attempts to evaluate at compile-time ev
 
 To achieve that, S++ marks every variable with either a compile-time value during parsing of statements, or a deferred unknown value under circumstances where compile-time evaluation is not reasonably possible. Examples of promotion to deferred evaluation include:
 - Usage of a runtime-defined data, such as reading the keyboard in real-time or acquiring data from a file or the network.
-	- File or network acquisition can be made compile-time using the appropriate compile-time functions such as `compile_file` (which works with a filepath or URL).
+	- File or network acquisition can be made compile-time using the appropriate potential `compile_time` functions such as `read` (which works with a filepath or URL). `read` is a `run_time` function, which can be overriden to `compile_time` by specifying the same keyword in front of the value.
 - Usage of not yet provided data in the compilation process: for example using an input variable of a function
 	- If such variable happens to be compile-time evaluated, the target variable will be promoted from deferred back to compile-time evaluation.
 
@@ -956,7 +961,3 @@ Threads incur a little cute exception in language to `stack`s. Stacks (including
 - `async` feature in the spirit of ECMAScript's `Promise`s
 - Primitives to handle endianness, such conversions in files, along with unique version specification
 	- Probably a all-in-one package to serialize S++ runtime primitives
-
-# Current implementation status
-
-- Pending the release of the first revision of the specification
