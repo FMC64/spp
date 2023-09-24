@@ -13,14 +13,18 @@ This specification covers most of the specificities to S++ and design choices, s
 
 S++ defines the following operators, by top to bottom precedence and listed by brackets of equivalent operators. Note that expressions are enclosed in an hierarchical structure by `()` parentheses. The top-level expression does not need to be `()`-enclosed.
 1. Member access operators, left-to-right
-	- `[SUPER_VALUE].[MEMBER_IDENTIFIER]`: the dot operator has the uttermost precedence within an S++ expression
+	- `[SUPER_VALUE].[MEMBER_IDENTIFIER]`: the dot operator has the uttermost precedence within an S++ expression. Members are accessed by reference, naturally.
 2. Call operator, left-to-right
 	- `[CALLABLE] [EXTRA] ([ARGUMENTS])`: not to be confused with a parentheses-enclosed sub-expression, denotes function-like call. `[EXTRA]` represents additional optional operators like `lossy` and `reinterpret`, which are only valid in a builtin type conversion situation.
+	- `[ARRAY-LIKE] [[INDEX]]`: array subscript. Awkward notation, for an `array` and an `index`, subscript can be expressed as `array[index]`.
 3. Upper unary operators, right-to-left
 	- `!`: boolean NOT
 	- `~`: binary NOT
-	- `+`: unary PLUS. Returns `[DEFAULT] - [VALUE]`, with `[VALUE]` the value to the right and `[DEFAULT]` the default value for the type of `[VALUE]`.
-	- `-`: unary MINUS. Returns `[DEFAULT] + [VALUE]`, with `[VALUE]` the value to the right and `[DEFAULT]` the default value for the type of `[VALUE]`.
+	- `+`: unary PLUS. Returns `[ZERO] - [VALUE]`, with `[VALUE]` the value to the right and `[ZERO]` the one value for the type of `[VALUE]` (result of the `zero` class method).
+	- `-`: unary MINUS. Returns `[ZERO] + [VALUE]`, with `[VALUE]` the value to the right and `[ZERO]` the one value for the type of `[VALUE]` (result of the `zero` class method).
+	- `++`: increment operator. This can be placed to the left of a value, which will evaluate to the incremented value. Or can be placed to the right, which will evalute to the value right before executing the statement and will increment the value right after the execution of the statement. In both cases, the incrementation is in the amount of one (result of the `one` class method). For `[VALUE]++`, the incrementation operation is equivalent to `[VALUE] += type_of([VALUE]).one()`.
+		- The choice of including this kind of operator is not trivial, but with standard tool-assisted code inspection, the existing confusion can be cleared up. This is clearly a feature that most experts would expect from a convenient language.
+	- `--`: decrement operator. Follows the same rules as `++`, but decrementing of course. For `[VALUE]--`, the decrementation operation is equivalent to `[VALUE] -= type_of([VALUE]).one()`.
 4. Upper arithmetic associative operators, left-to-right
 	- `*`: multiplication
 	- `/`: division
@@ -37,6 +41,7 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 	- `&`: binary AND
 8. Comparison operators, left-to-right. Note that this phase has an arbitrary arity: a `[MIN] _< value < [MAX]` value is perfectly valid in S++, and is equivalent to `[MIN] _< value and value < [MAX]`.
 	- `=`: is-equal-to operator
+		- Also present as the equivalent `equal_to` operator, in the rare situations where aliasing with the direct assignment operator `=` is inevitable.
 	- `=/=`: is-different-than operator. As an alternative, you can use `not [VALUE_LEFT] = [VALUE_RIGHT]`, which is equivalent in simple cases
 	- `>`: greater-than operator
 	- `<`: lesser-than operator
@@ -52,7 +57,16 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 	- An `if [PREDICATE] then [VALUE_IF_TRUE] else [VALUE_IF_FALSE]` expression, defined by the combined usage of `if`, `then` and `else` operators.
 		- This is not to be confused with a conditional scope, which are differentiated by the absence of `()` enclosed predicate here
 12. Assignment operators, right-to-left
-	- `=`: assignment operator. Contextually differentiated from the is-equal-to operator, as a statement must begin with assignments.
+	- `=`: assignment operator. Contextually differentiated from the is-equal-to operator, as an expression may begin with assignments.
+		- Direct assignments like this can only appear at the beginning of an expression (but they can be chained). Some exceptions apply, as they cannot appear at any point where a predicate is expected. The  `equal_to` operator will be assumed. A non-comprehensive list of predicate-like binding points are:
+			- Conditional-guarded scope predicate expression
+			- While-guarded scope predicate expression
+			- Conditional ternary predicate expression
+			- Function-like argument expected to be possibly `bool`
+			- Function-like argument passed part of an argument of variable count
+				- This rule is for good measure. In general where it cannot be cheaply and reasonbly determined that a predicate is expected, it is assumed that a predicate is in fact possibly expected.
+			- Expression being part of a `return` statement
+			- Expression being part of a `yield` statement
 	- `+=`: accumulation operator
 	- `-=`: decrease operator
 	- `*=`: multiply-by operator
@@ -468,7 +482,7 @@ A sequence can safely represent complex objects in memory, as for example C stri
 CString = sequence(source: StringU8NonZero) {
 private:
 	isZero = function(char: u8) {
-		return char == 0
+		return char = 0
 	}
 
 	// `present` means the instance gets accessed first as `data` then falls back to the sequence itself
@@ -589,7 +603,7 @@ f = function(x: natural, max: natural) {
 		// Analysis of iterator `count` invocation:
 		// `max` iterations, and  `0 _< i < max`
 
-		if (i & 1 == 0) {
+		if (i & 1 = 0) {
 			`5 _< x < 5 + max`
 			x += 1
 		}
@@ -612,7 +626,7 @@ f = function(x: natural, max: natural) {
 	__count__i = 0
 
 	while (i < max) {
-		if (__count__i & 1 == 0) {
+		if (__count__i & 1 = 0) {
 			x += 1
 		}
 
@@ -640,7 +654,7 @@ f = function(x: natural, max: natural) {
 	__count__i = 2
 
 	while (i < max) {
-		if (__count__i & 1 == 0) {
+		if (__count__i & 1 = 0) {
 			x += 1
 			__count__i += 2
 		}
@@ -749,7 +763,7 @@ public:
 
 	// Split the stack, the return value now owns the stack top (which becomes its stack base) until destroyed
 	// At return value destruction, the stack top of `this` is the same as it was when `split` was called
-	// Even if `SubT == T`, `this.iterate` will still stop before the result base
+	// Even if `SubT = T`, `this.iterate` will still stop before the result base
 	split = function(SubT: type = T): stack;
 
 	// Return all physical memory past the top to the runtime

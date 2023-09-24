@@ -17,6 +17,6 @@ Use `make`, with `$CXX` being a C++23-capable compiler with GCC interface.
 
 ## Running
 
-`./s++ path/to/entrypoint.spp` will run the S++ source being supplied.
+`./s++ path/to/entrypoint.spp arg0 arg1 arg2 ...` will run the S++ source being supplied along with such string arguments.
 
-`./s++ path/to/entrypoint.spp --inspect` will not run the source, only reprint the unrolled bytecode with extensive type and value annotations.
+`./s++ --inspect path/to/entrypoint.spp` will not run the source, only reprint the unrolled bytecode with extensive type and value annotations.
