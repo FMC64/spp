@@ -1,34 +1,12 @@
-# The S++ programming language
+# The S++ programming language specification
 
-## Introduction
-
-This document aims at covering the S++ programming language in its purpose, spirit and timeline.  
-S++ aims at being a easy-to-use and safe language while not compromising one bit on performance.  
-Direct competitors of S++ are first Rust (in its motivation) and then C++ (in the high-performance market).
-
-S++ is designed to be comparable to JavaScript and Python in its absolute approachability, from a complete programming newcomer perspective. A newbie should have no more trouble getting a simple algorithm to work on dynamic languages than on S++. In this regard, S++ competition is potentially as large as the entire active market of programming languages. Its performance combined to easy-to-use approach and safety would make S++ a very competitive general-purpose programming language. That being said, S++ also is admittedly unconventional and would represent a higher relative barrier to entry to seasoned engineers.
-
-S++ takes mainly inspiration from TypeScript, Ruby and C++ and is under ongoing pre-alpha development. S++ is designed to be very fast to build, it can be used as a scripting language.
-
-## Overview
-
-The main idea of S++ revolves around maximising data locality through memory-safe patterns. To achieve that, S++ defines a novel concept of the `sequence`.  
-A sequence is similar to a `struct` in C, except its size and layout is dynamic at runtime. Members of the sequence can depend of earlier members to dynamically define their size or even presence at all. For example, an array member can have its size defined by an earlier unsigned integer scalar. A payload member can be made optional depending on the state of a bit in an earlier member.
-
-Sanity restrictions are implemented to enforce that undefined behavior can never happen, as long as the execution platform is uncompromised.  
-S++ relies heavily on static analysis to infer temporary array dimensions and detect potential undefined behavior.
-
-More importantly, S++ is more of an experimental language where simplicity of the implementation, safety and top performance are equivalent highest-level priorities. Established conventions bear no value in this context. S++ does not aim at being a production-ready language, even if long-term reliability and stability in its design is also a priority. At best, having S++ being influencial in its concepts and spirit would be a reasonable goal.
-
-## Specification
-
-### 1. Builtin data types
+## 1. Builtin data types
 
 S++ agrees with C++ that compile-time computations and metaprogramming are powerful features. The user should be able to generate specialized code at compile-time, at the cost of increased binary size. S++ does not follow the more contemporary approach of dynamic languages of using runtime polymorphism based off a single set of generic functions and methods in the binary, as Java (as JVM-based languages such as Scala and Dart) and JavaScript (including TypeScript) do.
 
 In this way, S++ is heavily templated and expects the user to use them. Even builtin data types are in fact templates to remove redundancy and improve elegance in its usage. All functions in S++ are better thought as templates, taking in either compile-time or deferred evaluated arguments.
 
-#### 1.1 Scalar data types
+### 1.1 Scalar data types
 
 ```spp
 // Abstract scalar, cannot be instanciated but can be used as a type parameter
@@ -137,7 +115,7 @@ Because many users will want to use non-software emulated data types exclusively
 
 By default, the host and device-native data types are denoted as `native`. A `native`-based keyword can be prepended to every data type as default in the current module using the compile-time command: `default_native([NATIVE_KEYWORD])`. This cannot be changed for required modules unless modifying them.
 
-#### 1.2. Type conversions
+### 1.2. Type conversions
 
 S++ presents two operators to be combined to realise conversions between two different data types:
 - `[TARGET_DATA_TYPE]([SOURCE_VALUE])`: lossless data conversion. `[SOURCE_VALUE]` must be entirely representable within `[TARGET_DATA_TYPE]`. This is the indended way of performing sign extension for two's complement integers. This is the default data conversion within the language, other types of conversion need to be explicitely called.
@@ -148,7 +126,7 @@ S++ presents two operators to be combined to realise conversions between two dif
 From these definitions, the user will observe that even a `lossy` conversion will not be able to convert a signed data type to an unsigned one. There is then a pratical bias in `lossy` converting an unsigned scalar to a signed one when comparisons or accumulations between different data types are necessary.
 
 
-#### 1.3. Scalar literals
+### 1.3. Scalar literals
 
 Here S++ shines with its unconventionality. Because of the implementation simplicity requirement, scalar literals are represented in little-endian notation.  
 Little-endian is the standard on a S++ system. Conventional big-endian notation (denoted `arabic` here) is optional but not recommended for optimal compiling speed. The early versions of S++ will not include a `arabic` literal parser.
@@ -179,7 +157,7 @@ The compile-time literal system should support complex arithmetic operations suc
 - The implementation must only have bitwise operators, `+`, `-` and `*` being considered lossless literal operators. The conversion of the result of all others operators to a non-literal scalar must be considered `lossy`, and then force the user to use an explicit `lossy` conversion. Exceptions must not apply even if the result of the operation actually happens to be representable without loss for these operations. This case is assumed to be non-trivial and may cause significant discrepancies among implementations if would be left to their discretion: lossy behavior must be assumed anyway.
 - Note that the lossy conversion of complex operations over scalar literals to a non-literal scalar data type is not guaranteed to be exact. It is left to the implementation, even if obviously it would be ideal to be able to compute each bit with absolute precision (and an extra one to round the LSB to nearest). Implementations based on floating-point math functions are heavily encouraged to perform computations on the most precise float available on the host. Hosts with fixed-point support only are encouraged to use at least 32 bits of fraction and 32 bits of integer, and ideally 64 bits of both if wide enough registers are available and that carry propagation is cheap enough. Applications are requested to assume that any implementation will provide a reasonable degree of precision and performance that the host can provide, that would make circumventing such a system unreasonable in the vast majority of use-cases. Regardless of machine-specific details, the application should expect the base implementation of S++ to detect remarkable operations on `transendental` and `real` scalars, such that they get converted to lossless equivalent operations that will likely result in more accuracy when evaluated by the platform-dependent implementation.
 
-#### 1.4. String literals
+### 1.4. String literals
 
 S++ declares string literals similarly to C++, using double quotes. Example: `"Hello world!"`. This results into a compile-time array of the current character scalar. An encoding keyword can be prepended to the string literal to change its encoding from the current one.
 
@@ -193,15 +171,15 @@ Both `string_utf8` and `string_ascii` implement `string_u8_non_zero`, which stat
 
 Note that none of these encodings present a null terminating character. The `to_null_terminated` method of these strings should be used to obtain a C (or similar)-compatible string.
 
-### 2. Scope, assignment and evaluation
+## 2. Scope, assignment and evaluation
 
-#### 2.1. Scopes
+### 2.1. Scopes
 
 A scope defines a name space. A name space is a collection of unique identifiers which each resolve to an object. Non-declared identifiers resolve to the `undefined` value. Scopes can be nested one into each other by enclosing a sub-scope into `{}` braces. Within a sub-scope, identifiers in parent scopes can be resolved, however shadowing is not allowed (i.e. no object can be declared in a sub-scope which identifier is equivalent to the one of an object in any super scope).
 
 A S++ module implicitly contains a top-level scope which gets enriched by the user when adding code to it. There is no distinction between a top-level scope and any sub-scope in its usage and properties. Scopes are objects like any other in the language and can be named using a variable assignment. Variables within a scope can be accessed using the `.` operator.
 
-#### 2.2. Variables
+### 2.2. Variables
 
 A variable is a binding point that is defined within a particular scope, which identifier is unique within that scope. All undeclared variables resolve to the `undefined` value within a scope. `undefined` can be seen as the primitive value and type of every variable, until an assignment overrides it with a primary type which can get enriched with subsequent assignments of various types. A variable has then from zero (undeclared) to an indefinite amount of possible types. S++ statically evaluates the set of possible types for a variable throughout its entire lifetime, and at runtime allocates memory space only once at declaration for the storage for the largest type along with storing the type identifier.
 
@@ -246,7 +224,7 @@ The `void` value is similar to `undefined` as they are both symbols which requir
 - `undefined` can only be generated by language semantics from the absence of a binding to a variable, or more generally by the absence of user definitions in the usage of the language that would otherwise yield any sort of value (for example, a function implicitly returning at end of scope or returning with an empty expression). The user cannot assign a variable to `undefined`, as it would violate the requirement of `undefined` meaning zero user-defined type to a variable. However, the user can still generate `undefined` values in general (most likely for type checking, for example). In the context of a function, `undefined` is the type for any argument type and the type for any return type.
 - `void` can only get user-generated. It is the conventional value to denote emptyness. An object of type `T` which may be or may not be defined could be expressed as a `T | void` type. The main practical difference with `undefined` is that the user explicitly assigns `void` to a variable, where `undefined` is the default value that cannot be assigned. The user is expected not to create other symbols that have the same practical usage as `void` and just use `void` instead. `void` is also the value returned by a function without an explicit returned value.
 
-#### 2.3. Evaluation
+### 2.3. Evaluation
 
 S++ is a eagerly evaluated language. S++ attempts to evaluate at compile-time every expression, at long at it does not result in implicit data or semantic loss.
 
@@ -260,9 +238,9 @@ When a function is invoked from the entry point of an application (at any scope 
 
 Because deferred evaluation is likely to be the status of most user variables, at least while parsing the program ad hoc and not including instanciations at the entry point, comprehensive analysis is realized to enforce that individual modules of code will perform as expected before invoking them.
 
-### 3. Primitives
+## 3. Primitives
 
-#### 3.1. Functions
+### 3.1. Functions
 
 Functions get declared using the `function` keyword, followed by a `()` enclosed, comma-separated list of arguments, then by optionally the return type, and then by `{}` enclosed sequence of statements. Each function argument consist of an identifier, followed by an optional comma defining the base type of the argument. That base type will then get enriched by invoking the function and binding each argument to a variable. Without any base type specified, the meaning is zero user-defined types (as for non-declared variables) and that then the argument will acquire the exact same type of the variable bound to it at invocation.
 
@@ -302,7 +280,7 @@ These argument packs are opaque in nature and are meant to exactly bind variable
 
 The type `...` implements `__tuple_methods` discussed right below, while not being a tuple itself. Running `type_of` on an argument of type `...` yields `...` and not the associated tuple type.
 
-#### 3.2. Tuples
+### 3.2. Tuples
 
 Tuples are a grouping of multiple values inside a array-like object which type may differ for each tuple member, and are all compile-time known.
 
@@ -329,7 +307,7 @@ __tuple_methods = interface {
 }
 ```
 
-#### 3.3. Arrays
+### 3.3. Arrays
 
 One core feature of S++ is arrays. Arrays are instantiated by specifying the size first, and then the type. In general, S++ syntax is based on the order of expected usage of the primitive, so naturally the type comes last. Arrays have a zero-argument constructor. The `type` of any array is `[]`.
 
@@ -353,11 +331,11 @@ The intialization phase completes at the first indexed read into the array. Ever
 
 Defining an explicit runtime boundary on an array is illegal. Back-insertion patterns allowing array size inferrence must be used for runtime array sizes.
 
-#### 3.4. Objects
+### 3.4. Objects
 
 Objects like instances of `class`, `struct` or `sequence` get instantiated by calling their constructor (i.e. calling the type name) and their members accessed using the `.` operator. These three types all implement `object` (including a scope), which itself implements `type`.
 
-##### 3.4.1 Sequences
+#### 3.4.1 Sequences
 
 Sequences get defined using the `sequence` keyword, followed by the constructor arguments (similarly to a function arguments declaration), followed by `implements` or `extends` keywords to build upon another object type. The sequence itself is declared much like a function body which scope can be externally accessed. The default visibility attribute for sequence scopes is `public`. The `type` of any sequence is `sequence`.
 
@@ -404,7 +382,7 @@ private:
 
 Such `CString` can then be iterated over using a `for` loop for example, which will yield each character in the `data` member of the `sequence`, not including the null terminating character.
 
-##### 3.4.2 Structs
+#### 3.4.2 Structs
 
 Structs are similar to `sequence`s, except of course that their keyword is `struct`. The default visibility attribute for struct scopes is `public`. The `type` of any struct is `struct`.
 
@@ -424,11 +402,11 @@ structWithArray = function(T: type, N: compile_time dev_u) {
 }
 ```
 
-##### 3.4.3 Classes
+#### 3.4.3 Classes
 
 Classes share every attribute of `struct`s, except that their keyword is `class` and that the default visibility attribute for class scopes is `private`. The `type` of any class is `class`.
 
-### 4. Static analysis
+## 4. Static analysis
 
 S++ relies heavily on static analysis to enforce safe behavior. Static analysis is performed on each deferred or runtime executed statement (compile-time values by definition, do not need analysis). Static analysis happens in two consecutive phases:
 - 1. Type set evaluation and inference of the set of possible values at each assignment and conditional, along with statement execution count deduction in parametrized scope
@@ -437,7 +415,7 @@ S++ relies heavily on static analysis to enforce safe behavior. Static analysis 
 Phase 1. is used to narrow down the state of variables at each statement of the program, for futher analysis and scalar boundary checking.  
 Phase 2. is necessary in circumstances where the execution count of a specific statement needs to be evaluated. For example, runtime-sized arrays need to compute how many times does the back-insertion statement gets executed at most, to properly allocate the buffer at variable declaration. This phase relies on the analysis of phase 1. and iterator analysis usage to output a range of array size.
 
-#### 4.1. Type set/possible value set/iterator analysis
+### 4.1. Type set/possible value set/iterator analysis
 
 At each assignment of a value to a given variable, its type gets enriched with that possibly new type being added to the set of possible types. This was already discussed at section 2.2. Moreover, at each assignment of a variable and until new assignement, the possible set of values is determined, only valid for the scope where the variable is available onwards. A mix of boolean algebra and arithmetic is performed to deduct these sets.
 
@@ -603,15 +581,15 @@ The iterator analysis system only supports strictly increasing natural iterators
 
 When the analysis resolves to a set of possible values with a single value in it, the implementation will not prune full runtime code with every iterator out and instead replace it with the inferred expression. Useless code removal is considered expensive to perform and the user should know better. The user is expected to use that presented analysis to identify and remove useless code themselves. No warning will be issued by the S++ compiler, as the accurate relevancy of some piece of code would have needed to be evaluated at that point, which is virtually equivalent to performing useless code removal to begin with.
 
-#### 4.2. Statement execution count usage and analysis leverage
+### 4.2. Statement execution count usage and analysis leverage
 
 Using the comprehensive analysis discussed in 4.1., runtime-sized arrays can be figured out. The sum of every back-insertion execution maximum count is performed, which gives the upper limit of elements for the array. The type in the array also has a maximum size required to be stored memory. The actual number of bytes allocated for the runtime-sized array is the maximum size of the array multiplied by the maximum size of the array element.
 
 In general, access to arrays is checked using the deducted range of the index. The index must be strictly within the minimum size of the array. Iterating over the full size of the array is always permitted, but the user should understand it is not a reasonable way of providing index access between the minimum size and the maximum size. The language and deduction capabilities should be improved so that the minimum size doesn't get underestimated in these use-cases prompting for extended index support.
 
-### 5. Stacks
+## 5. Stacks
 
-#### Preamble and discussion around state-of-the-art
+### Preamble and discussion around state-of-the-art
 
 All runtime objects can be allocated on the execution stack. The execution stack can grow to a large extent: stack address bit count is configured on the `entry_point` of the process, and can take up to the vast majority of the adress space for the most extreme applications. This should account for a large amount of practical use-cases. However, once allocated, this space is obviously static and there is no reasonable way to dynamically extend an array previously allocated and initialized. S++ presents ways to easily allocate arrays of the arbitrarily correct size for the purpose of immediatly using it, but no mean to accomodate for future unpredictable size requirements.
 
@@ -625,7 +603,7 @@ Because of these two issues, the most extreme applications often need to have cu
 
 S++ acknowledges that while the heap is a convenient tool for naive and not demanding applications, its structural attributes cannot be reconciled with reliable peak-performance in a general-purpose way.  
 
-#### 5.1. S++ approach and overview
+### 5.1. S++ approach and overview
 
 S++ proposes no heap, but instead a system permitting the allocation of stacks with arbitrary addressing spaces, that can grow at a minimal and consistent cost. S++ stacks are memory-safe, and allow the application to allocate objects of an arbitrary type (even complex, polymorphic ones) on top of it. S++ stacks can be split on a current top of stack, and the new section allocated on it and safely destroyed by dropping the split handle.
 
@@ -633,7 +611,7 @@ On top of it, stacks are suitable to have a new concept of "segments" allocated 
 
 S++ also proposes "long" references which can, within a particular stack, reference any object present in the current stack or any other one. Long references usually need to store a full address and are then considered memory-expensive. S++ provides means to enforce that no reference, either long or short, can be left "dangling" (i.e. the underlying object gets destroyed before the reference does), majorly by using static analysis of stack sections (which have been "split"). Said stack sections control the lifetime of objects they hold, and then tracking their lifetime compared to the one of references pointing to them is sufficient. References and objects can be abstracted away in their lifetime by the stack segment they are allocated into.
 
-#### 5.2. Stack creation
+### 5.2. Stack creation
 
 A `stack` is a runtime-only object. Compile-time objects do not need to use `stack`s, as they are effectively relaxed in their growth, typing opportunities and can do whatever they want. A `stack` is purely a runtime trick to guarantee memory safety and locality on runtime data structures with a complexity vastly superior to the static analysis capabilities. Some amount of analysis is still done on top these concepts, which allows the inferrence of the high-level split section memory structure of the stack to be done.
 
@@ -686,7 +664,7 @@ A stack can be split into sub-stacks, allowing the destruction of continuous seg
 
 Any object of the supplied type `T` can be allocated on top of the stack to make it grow. The allocated space can only be released by destroying the sub-stack the object has been allocated onto. Sub-stacks are hierarchical by nature: sub-stacks get defined by splitting the top sub-stack, the overall stack grows object by object on the top sub-stack and the overall stack "pops" by destroying top sub-stacks. This matches 1-to-1 the lifecycle of sub-stacks as inferred by their appearance in scope and their scope end-of-definition.
 
-#### 5.3. Segments
+### 5.3. Segments
 
 The purpose of segments is to define a localized address space which can be addressed using relatively short opaque scalars (called "indices" here). A `segment` is a parametrized type that takes as argument the number of bits of the address space:
 
@@ -723,11 +701,11 @@ The short references that are created within segments can only be dereferenced w
 
 Overall, segments are a safe way to produce complex memory structures with low pointer memory overhead.
 
-### 6. Execution context
+## 6. Execution context
 
 We have defined many primitives and concepts so far. They interact with each other within a vacuum in some way. We are going to define how these can form a process and interact with the Operating System.
 
-#### 6.1. Modules
+### 6.1. Modules
 
 S++ takes large inspiration from ECMAScript modules. By default, all objects within a .spp file (called a module) cannot be accessed outside of said module.
 
@@ -757,7 +735,7 @@ The module path must not include the `.spp` file extension, though the module fi
 
 Circular dependencies are illegal in S++. A module cannot implicitly import itself by importing dependencies. The same module can be imported as many times as required though, as long as this count is finite.
 
-#### 6.2. Entry point
+### 6.2. Entry point
 
 To actually produce an executable and run it, the S++ file defining the module `export`ing exactly one `entry_point` must be invoked.
 
@@ -798,7 +776,7 @@ result = /path/to/file/module arg0 arg1 arg2 ...
 
 The simplified S++ shell is designed to be competitive with popular Unix-like shells such as Bash or Zsh (and friends) in terms of typing speed and operator overhead, while providing comprehensive and accurate code completion on the fly. Tokens usage is inferred on the context, allowing to run a S++ program by simply typing out its module path and providing space-separated arguments. Simplified S++ is meant to be write-only, typed on the fly and takes inspiration from popular functional languages such as Haskell and Lisp. Expressions are parentheses-enclosed and here in particular, strings do not need to have double-quote characters to be written out. When a value from an enum is expected, simplified S++ will happily suggest and accept any identifier which is part of the enum in question. Types (shallowly as well as deeply) referenced by the entry-point arguments are automatically suggested and available in the context of invoking such entry-point. Scalar literals can be inputed exactly like in standard S++.
 
-#### 6.3. Exceptions
+### 6.3. Exceptions
 
 Exceptions are an easy way to propagate an error down to an error catcher. To raise an exception, use the `throw` keyword followed by the error value to be raised. Any language object qualifies, but runtime exceptions raisers/catchers must use runtime values only.
 
@@ -820,7 +798,7 @@ In the spirit of S++, exceptions are caught similarly to the way values are pass
 
 Exceptions in S++ are best seen as the most powerful control flow feature of the language. They may generate a lot of code for the return path back to the catch scope, so they better be used mindfully. The implementation must minimize code size over performance, ideally by sharing destructor code on a per relevant exception-scope basis.
 
-#### 6.4. Threads & concurrency
+### 6.4. Threads & concurrency
 
 There is no way around it: S++ must provide builtin concurrency support.
 
@@ -870,7 +848,7 @@ Similarly to functions, threads must have `join`'d before any captured variable 
 
 Threads incur a little cute exception in language to `stack`s. Stacks (including any sub-stack) cannot be split during the scope of capture by a thread. Aside from that, allocations can be made on top of a stack as usual business, be it from main thread or the spawned thread, as such concurrent access must happen `concurrently` and is then guaranteed safe.
 
-## Next design steps
+# Next design steps
 
 - Abstract away bit count of stacks, use weight instead and leverage compile-time layout analysis to produce a per-device optimal stack layout
 - Easy-to-use low-latency inter-thread signals (effectively what `std::condition_variable` allows the user to do)
@@ -879,6 +857,6 @@ Threads incur a little cute exception in language to `stack`s. Stacks (including
 - Primitives to handle endianness, such conversions in files, along with unique version specification
 	- Probably a all-in-one package to serialize S++ runtime primitives
 
-## Current implementation status
+# Current implementation status
 
 - Pending the release of the first revision of the specification
