@@ -1,7 +1,7 @@
 CXXFLAGS = -std=c++23 -Wall -Wextra -O3
 
-SRC = ./main.cpp
-HEADERS = $(wildcard ./*.hpp)
+SRC = ./src/main.cpp
+HEADERS = $(wildcard ./src/*.hpp)
 OBJ = $(SRC:.cpp=.o)
 
 TARGET = s++
