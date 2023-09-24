@@ -1,5 +1,105 @@
 # The S++ programming language specification
 
+## 0. Early-stage addendums
+
+This specification covers most of the specificities to S++ and design choices, so that a reasonble person could provide an implementation also based on the precedent that the closest programming languages (C++, TypeScript, Ruby) did set. This section lists areas not yet integrated into the specification that are not specific enough to be listed yet, but not obvious enough that they shall not be mentionned at all. Or simply parts of the specification for which their location is not determined yet. The reader is expected to be familiar with [the rest of this document](#1-builtin-data-types) before reading section 0.
+
+### 0.1. Operator precedence
+
+S++ defines the following operators, by top to bottom precedence and listed by brackets of equivalent operators. Note that expressions are enclosed in an hierarchical structure by `()` parentheses. The top-level expression does not need to be `()`-enclosed.
+1. Member access operators, left-to-right
+	- `[SUPER_VALUE].[MEMBER_IDENTIFIER]`: the dot operator has the uttermost precedence within an S++ expression
+2. Call operator, left-to-right
+	- `[CALLABLE] [EXTRA] ([ARGUMENTS])`: not to be confused with a parentheses-enclosed sub-expression, denotes function-like call. `[EXTRA]` represents additional optional operators like `lossy` and `reinterpret`, which are only valid in a builtin type conversion situation.
+3. Upper unary operators, right-to-left
+	- `!`: boolean NOT
+	- `~`: binary NOT
+	- `+`: unary PLUS. Returns `[DEFAULT] - [VALUE]`, with `[VALUE]` the value to the right and `[DEFAULT]` the default value for the type of `[VALUE]`.
+	- `-`: unary MINUS. Returns `[DEFAULT] + [VALUE]`, with `[VALUE]` the value to the right and `[DEFAULT]` the default value for the type of `[VALUE]`.
+4. Upper arithmetic associative operators, left-to-right
+	- `*`: multiplication
+	- `/`: division
+	- `%`: modulo
+5. Lower arithmetic associative operators, left-to-right
+	- `+`: addition
+	- `-` subtraction
+7. Upper binary associative operators, left-to-right
+	- `<<`: shifted-to-left-by operator
+	- `>>`: shifted-to-right-by operator
+6. Lower binary associative operators, left-to-right
+	- `|`: binary OR
+	- `^`: binary XOR
+	- `&`: binary AND
+8. Comparison operators, left-to-right. Note that this phase has an arbitrary arity: a `[MIN] _< value < [MAX]` value is perfectly valid in S++, and is equivalent to `[MIN] _< value and value < [MAX]`.
+	- `=`: is-equal-to operator
+	- `=/=`: is-different-than operator. As an alternative, you can use `not [VALUE_LEFT] = [VALUE_RIGHT]`, which is equivalent in simple cases
+	- `>`: greater-than operator
+	- `<`: lesser-than operator
+	- `>_`: greater-than-or-equal-to operator
+	- `_<`: lesser-than-or-equal-to operator
+9. Boolean associative operators, left-to-right
+	- `and`: boolean AND
+	- `or`: boolean OR
+	- `xor`: boolean XOR
+9. Lower unary operators, right-to-left
+	- `not`: boolean NOT, equivalent to `!` in its operation but with way lower precedence
+11. Conditional ternary operators
+	- An `if [PREDICATE] then [VALUE_IF_TRUE] else [VALUE_IF_FALSE]` expression, defined by the combined usage of `if`, `then` and `else` operators.
+		- This is not to be confused with a conditional scope, which are differentiated by the absence of `()` enclosed predicate here
+12. Assignment operators, right-to-left
+	- `=`: assignment operator. Contextually differentiated from the is-equal-to operator, as a statement must begin with assignments.
+	- `+=`: accumulation operator
+	- `-=`: decrease operator
+	- `*=`: multiply-by operator
+	- `/=`: divide-by operator
+	- `%=`: remainder-of divide-by operator
+	- `<<=`: shift-to-left-by operator
+	- `>>=`: shift-to-right-by operator
+
+### 0.2. Operator overloading
+
+Any scope can define operator overloads, which must be assigned to `function`s with the correct amount of arguments:
+```spp
+// Assume `T` is a `type`
+T: type
+
+class {
+	m_privateValue: T
+
+public:
+	// Boolean NOT operator overload
+	not = function() {
+		return !m_privateValue	// Return anything you like here, for real
+	}
+
+	// Multiplication operator overload
+	* = function(other: type_of(this)) {
+		return m_privateValue * other.m_privateValue
+	}
+
+	// Call operator overload
+	() = function(arguments: ...) {
+		// Do anything here
+	}
+}
+```
+
+Call overloading can be implemeted by using the `or` operator between multiple successive function values, which will yield a single overall function, for which all sub-functions are mutually exclusive. For more call complex overloading patterns, use the `is_a`/`is_an` builtin function, which returns a function returning whether the passed value can be bound to the type passed as the argument to `is_a`/`is_an`. Also, the `can_call` builtin function returns a function returning whether passed arguments to the passed value to `can_call` would succeed in their binding.
+
+While operator and call overloading are permitted in S++, default argument values are not.
+
+### 0.3. Destructors and move semantics
+
+A scope can assign a `destructor`-named member which must be a 0-argument function and perform arbitrary work. `destructor` is guaranteed to be called right before the object goes out of scope, unless it has been copied from using the `move` builtin function. Copies (triggered by assignments) happen by simply copying the exact memory contents from source to target. Copying is authorized by default, but can be made illegal on a scope by specifying `assign = delete`. All scopes with a defined `destructor` automatically have `assign = delete`, unless it is being explicitly permitted using the `assign = default` statement.
+
+### 0.4. `this` value
+
+`this` always refers to the scope it is being used into. Its usage is generally discouraged as it may produce undesired copies through attempts at aliasing. Just name variables right on the first declaration. However, `this` may come very handy in producing very generic compile-time code (type checking and so on).
+
+### 0.5. Scope inspection & metaprogramming
+
+It is possible to iterate through all accessible members of any scope using a `for` loop. The string of the public member identifier will be passed, which makes each scope essentially a compile-time string generator. The dot operator can be used with a string as the right value to allow for compile-time metaprogramming. This is valid for any value, including `this`.
+
 ## 1. Builtin data types
 
 S++ agrees with C++ that compile-time computations and metaprogramming are powerful features. The user should be able to generate specialized code at compile-time, at the cost of increased binary size. S++ does not follow the more contemporary approach of dynamic languages of using runtime polymorphism based off a single set of generic functions and methods in the binary, as Java (as JVM-based languages such as Scala and Dart) and JavaScript (including TypeScript) do.
@@ -409,7 +509,7 @@ Classes share every attribute of `struct`s, except that their keyword is `class`
 ## 4. Static analysis
 
 S++ relies heavily on static analysis to enforce safe behavior. Static analysis is performed on each deferred or runtime executed statement (compile-time values by definition, do not need analysis). Static analysis happens in two consecutive phases:
-- 1. Type set evaluation and inference of the set of possible values at each assignment and conditional, along with statement execution count deduction in parametrized scope
+- 1. Type set evaluation and inference of the set of possible values at each assignment and conditional, along with statement e=xecution count deduction in parametrized scope
 - 2. Statement execution count usage
 
 Phase 1. is used to narrow down the state of variables at each statement of the program, for futher analysis and scalar boundary checking.  
@@ -426,27 +526,27 @@ Conditional blocks will narrow down the possible assigned values of a variable. 
 N: natural
 
 f = function(x: natural) {
-	// At this point in analysis, `0 <= x < +inf` (`natural` definition, would be `unknown` with `x` as `undefined`)
+	// At this point in analysis, `0 _< x < +inf` (`natural` definition, would be `unknown` with `x` as `undefined`)
 
-	if (x >= 0 && x < N) {
-		// `0 <= x < N` (intersection of assigned `0 <= x < +inf` and checked `0 <= x < N`)
+	if (x >_ 0 && x < N) {
+		// `0 _< x < N` (intersection of assigned `0 _< x < +inf` and checked `0 _< x < N`)
 
 		// Statements not assigning `x`
 		...
 	} else {
-		// `x >= N` (intersection of assigned `0 <= x < +inf` and checked `x >= N`)
+		// `x >_ N` (intersection of assigned `0 _< x < +inf` and checked `x >_ N`)
 
 		// Statements not assigning `x`
 		...
 	}
 
-	// At this point, `x` is back to `0 <= x < +inf` as we are outside of any conditional
+	// At this point, `x` is back to `0 _< x < +inf` as we are outside of any conditional
 
-	if (x >= 0 && x < N * 2) {
-		// `0 <= x < N * 2`
+	if (x >_ 0 && x < N * 2) {
+		// `0 _< x < N * 2`
 		x = N / 2
 	} else {
-		// `x >= N`
+		// `x >_ N`
 		x = 0
 	}
 
@@ -459,38 +559,38 @@ Iterators which depend on compile-time values get fully unrolled to a sequence o
 ```spp
 // `count` is builtin, but presented here for completeness
 count = function(max: natural) {
-	`0 <= max < +inf`
+	`0 _< max < +inf`
 
 	// `i = 0`, `1` time
 	i = 0
 	while (i < max) {
 		// `max` iterations
 
-		// `0 <= i < max`
+		// `0 _< i < max`
 		yield i
 
-		// `0 <= i <= max`
+		// `0 _< i _< max`
 		i += 1
 	}
 }
 
 f = function(x: natural, max: natural) {
-	// `0 <= x < +inf`
+	// `0 _< x < +inf`
 
 	// `x = 5`
 	x = 5
 
 	for (i : count(max)) {
 		// Analysis of iterator `count` invocation:
-		// `max` iterations, and  `0 <= i < max`
+		// `max` iterations, and  `0 _< i < max`
 
 		if (i & 1 == 0) {
-			`5 <= x < 5 + max`
+			`5 _< x < 5 + max`
 			x += 1
 		}
 	}
 
-	// `5 <= x <= 5 + max`
+	// `5 _< x _< 5 + max`
 }
 ```
 
@@ -498,7 +598,7 @@ From a lower-level perspective, the actual analysed code is the following, as th
 
 ```spp
 f = function(x: natural, max: natural) {
-	// `0 <= x < +inf`
+	// `0 _< x < +inf`
 
 	// `x = 5`
 	x = 5
@@ -515,10 +615,10 @@ f = function(x: natural, max: natural) {
 
 		// `__count__i` gets incremented with `1` units at each iteration
 		// Given that `__count__i = 0` before the iterator, it means `max` iterations
-		// Range of `__count__i` is then: `0 <= __count__i < max`
+		// Range of `__count__i` is then: `0 _< __count__i < max`
 	}
 
-	// `5 <= x <= 5 + max`
+	// `5 _< x _< 5 + max`
 }
 ```
 
@@ -526,7 +626,7 @@ Let's assume that the caller of the iterator does actually modify the iterator c
 
 ```spp
 f = function(x: natural, max: natural) {
-	// `0 <= x < +inf`
+	// `0 _< x < +inf`
 
 	// `x = 5`
 	x = 5
@@ -544,11 +644,11 @@ f = function(x: natural, max: natural) {
 
 		// `__count__i` gets incremented with `1` to `3` units at each iteration
 		// Given that `__count__i = 2` before the iterator, it means at least `ceil((max - 2) / 3)` and at most `max - 2` iterations
-		// Range of `__count__i` is then: `2 <= __count__i < 2 + (max - 2) * 3`
+		// Range of `__count__i` is then: `2 _< __count__i < 2 + (max - 2) * 3`
 		// `__count__i` cannot be assigned in a sub-iterator or else this analysis fails.
 	}
 
-	// `5 <= x <= 5 + max`
+	// `5 _< x _< 5 + max`
 }
 ```
 
@@ -556,16 +656,16 @@ Finally, let's see a two-dimensionnal approach with zero-based iterators:
 
 ```spp
 f = function(x: natural, width: natural, height: natural) {
-	// `0 <= x < +inf`
+	// `0 _< x < +inf`
 
 	// `x = 5`
 	x = 5
 
 	for (i : count(height)) {
-		// `height` iterations, `0 <= i < height`
+		// `height` iterations, `0 _< i < height`
 
 		for (j : count(width)) {
-			// `width` iterations, `0 <= j < width`
+			// `width` iterations, `0 _< j < width`
 
 			// Overall this is executed `height * width` times
 			x++
