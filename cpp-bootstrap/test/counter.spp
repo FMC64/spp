@@ -1,9 +1,9 @@
-acc = 0
+acc <- 0
 
 for (i : count(10)) {
-	inc = i * acc
+	inc <- i * acc
 	std_out << "i = " << i << ", inc = " << inc << end_line
-	acc += inc
+	acc + <- inc
 }
 
 std_out << "acc(end of program) = " << acc << end_line

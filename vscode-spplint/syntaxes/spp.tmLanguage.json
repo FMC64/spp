@@ -1,0 +1,130 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "S++",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#operatorKeywords"
+		},
+		{
+			"include": "#scopeKeywords"
+		},
+		{
+			"include": "#modifierKeywords"
+		},
+		{
+			"include": "#visibility"
+		},
+		{
+			"include": "#languageVariables"
+		},
+		{
+			"include": "#languageConstants"
+		},
+		{
+			"include": "#languageClasses"
+		},
+		{
+			"include": "#languageFunctions"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#operators"
+		}
+
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.block.spp",
+					"begin": "(\\/\\*)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.spp"
+						}
+					},
+					"end": "(\\*\\/)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.spp"
+						}
+					}
+				},
+				{
+					"name": "comment.line.double-slash.spp",
+					"begin": "(\\/\\/)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.spp"
+						}
+					},
+					"end": "(?:\\n|$)"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.spp",
+				"match": "\\b(if|then|else|while|for|return|yield|continue|break|try|catch|assign|present)\\b"
+			}]
+		},
+		"operatorKeywords": {
+			"patterns": [{
+				"name": "keyword.operator.spp",
+				"match": "\\b(not|or|and|xor)\\b"
+			}]
+		},
+		"scopeKeywords": {
+			"name": "storage.type.spp",
+			"match": "\\b(function|class|sequence|struct|thread)\\b"
+		},
+		"modifierKeywords": {
+			"name": "storage.type.spp.qualifiers",
+			"match": "\\b(native|native_load_store|non_native|concurrently)\\b"
+		},
+		"languageVariables": {
+			"name": "variable.language.spp",
+			"match": "\\b(this)\\b"
+		},
+		"languageConstants": {
+			"name": "support.constant.spp",
+			"match": "\\b(undefined|void|delete)\\b"
+		},
+		"languageClasses": {
+			"name": "support.class.spp",
+			"match": "\\b(scalar|natural|integer|positive_real|real|transcendental|bool|signed|unsigned|fixed_signed|fixed_unsigned|ieee754_float|unsigned_minifloat|signed_minifloat|minifloat|host_unsigned|host_u|host_signed|host_s|host_float|host_f|device_unsigned|dev_u|device_signed|dev_s|device_float|dev_f|u8|u16|u32|u64|u128|u256|s8|s16|s32|s64|s128|s256|f16|f32|f64|f128|f256|f80|stack)\\b"
+		},
+		"languageFunctions": {
+			"name": "support.function.spp",
+			"match": "\\b(type_of|can_call|is_a|is_an|move|default_native|default_encoding)\\b"
+		},
+		"visibility": {
+			"name": "storage.spp",
+			"match": "\\b(public|protected|private)\\b"
+		},
+		"strings": {
+			"name": "string.quoted.double.spp",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.spp",
+					"match": "\\\\."
+				}
+			]
+		},
+		"operators": {
+			"name": "keyword.operator.spp",
+			"match": "(<-|!|~|\\+|\\-|\\*|/|%|>|<|\\||\\^|&|=|_<|>_|:|\\.\\.\\.)"
+		}
+	},
+	"scopeName": "source.spp"
+}

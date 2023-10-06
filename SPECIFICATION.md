@@ -22,9 +22,9 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 	- `~`: binary NOT
 	- `+`: unary PLUS. Returns `[ZERO] - [VALUE]`, with `[VALUE]` the value to the right and `[ZERO]` the one value for the type of `[VALUE]` (result of the `zero` class method).
 	- `-`: unary MINUS. Returns `[ZERO] + [VALUE]`, with `[VALUE]` the value to the right and `[ZERO]` the one value for the type of `[VALUE]` (result of the `zero` class method).
-	- `++`: increment operator. This can be placed to the left of a value, which will evaluate to the incremented value. Or can be placed to the right, which will evalute to the value right before executing the statement and will increment the value right after the execution of the statement. In both cases, the incrementation is in the amount of one (result of the `one` class method). For `[VALUE]++`, the incrementation operation is equivalent to `[VALUE] += type_of([VALUE]).one()`.
+	- `++`: increment operator. This can be placed to the left of a value, which will evaluate to the incremented value. Or can be placed to the right, which will evalute to the value right before executing the statement and will increment the value right after the execution of the statement. In both cases, the incrementation is in the amount of one (result of the `one` class method). For `[VALUE]++`, the incrementation operation is equivalent to `[VALUE] + <- type_of([VALUE]).one()`.
 		- The choice of including this kind of operator is not trivial, but with standard tool-assisted code inspection, the existing confusion can be cleared up. This is clearly a feature that most experts would expect from a convenient language.
-	- `--`: decrement operator. Follows the same rules as `++`, but decrementing of course. For `[VALUE]--`, the decrementation operation is equivalent to `[VALUE] -= type_of([VALUE]).one()`.
+	- `--`: decrement operator. Follows the same rules as `++`, but decrementing of course. For `[VALUE]--`, the decrementation operation is equivalent to `[VALUE] - <- type_of([VALUE]).one()`.
 4. Upper arithmetic associative operators, left-to-right
 	- `*`: multiplication
 	- `/`: division
@@ -41,7 +41,6 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 	- `&`: binary AND
 8. Comparison operators, left-to-right. Note that this phase has an arbitrary arity: a `[MIN] _< value < [MAX]` value is perfectly valid in S++, and is equivalent to `[MIN] _< value and value < [MAX]`.
 	- `=`: is-equal-to operator
-		- Also present as the equivalent `equal_to` operator, in the rare situations where aliasing with the direct assignment operator `=` is inevitable.
 	- `=/=`: is-different-than operator. As an alternative, you can use `not [VALUE_LEFT] = [VALUE_RIGHT]`, which is equivalent in simple cases
 	- `>`: greater-than operator
 	- `<`: lesser-than operator
@@ -57,23 +56,17 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 	- An `if [PREDICATE] then [VALUE_IF_TRUE] else [VALUE_IF_FALSE]` expression, defined by the combined usage of `if`, `then` and `else` operators.
 		- This is not to be confused with a conditional scope, which are differentiated by the absence of `()` enclosed predicate here
 12. Assignment operators, right-to-left
-	- `=`: assignment operator. Contextually differentiated from the is-equal-to operator, as an expression may begin with assignments.
-		- Direct assignments like this can only appear at the beginning of an expression (but they can be chained). Some exceptions apply, as they cannot appear at any point where a predicate is expected. The  `equal_to` operator will be assumed. A non-comprehensive list of predicate-like binding points are:
-			- Conditional-guarded scope predicate expression
-			- While-guarded scope predicate expression
-			- Conditional ternary predicate expression
-			- Function-like argument expected to be possibly `bool`
-			- Function-like argument passed part of an argument of variable count
-				- This rule is for good measure. In general where it cannot be cheaply and reasonbly determined that a predicate is expected, it is assumed that a predicate is in fact possibly expected.
-			- Expression being part of a `return` statement
-			- Expression being part of a `yield` statement
-	- `+=`: accumulation operator
-	- `-=`: decrease operator
-	- `*=`: multiply-by operator
-	- `/=`: divide-by operator
-	- `%=`: remainder-of divide-by operator
-	- `<<=`: shift-to-left-by operator
-	- `>>=`: shift-to-right-by operator
+	- `<-`: assignment operator
+	- `+ <-`: accumulation operator
+	- `- <-`: decrease operator
+	- `* <-`: multiply-by operator
+	- `/ <-`: divide-by operator
+	- `% <-`: remainder-of divide-by operator
+	- `<< <-`: shift-to-left-by operator
+	- `>> <-`: shift-to-right-by operator
+	- `| <-`: binary-or-by operator
+	- `^ <-`: binary-xor-by operator
+	- `& <-`: binary-and-by operator
 
 ### 0.2. Operator overloading
 
@@ -87,17 +80,17 @@ class {
 
 public:
 	// Boolean NOT operator overload
-	not = function() {
+	not <- function() {
 		return !m_privateValue	// Return anything you like here, for real
 	}
 
 	// Multiplication operator overload
-	* = function(other: type_of(this)) {
+	* <- function(other: type_of(this)) {
 		return m_privateValue * other.m_privateValue
 	}
 
 	// Call operator overload
-	() = function(arguments: ...) {
+	() <- function(arguments: ...) {
 		// Do anything here
 	}
 }
@@ -109,7 +102,7 @@ While operator and call overloading are permitted in S++, default argument value
 
 ### 0.3. Destructors and move semantics
 
-A scope can assign a `destructor`-named member which must be a 0-argument function and perform arbitrary work. `destructor` is guaranteed to be called right before the object goes out of scope, unless it has been copied from using the `move` builtin function. Copies (triggered by assignments) happen by simply copying the exact memory contents from source to target. Copying is authorized by default, but can be made illegal on a scope by specifying `assign = delete`. All scopes with a defined `destructor` automatically have `assign = delete`, unless it is being explicitly permitted using the `assign = default` statement.
+A scope can assign a `destructor`-named member which must be a 0-argument function and perform arbitrary work. `destructor` is guaranteed to be called right before the object goes out of scope, unless it has been copied from using the `move` builtin function. Copies (triggered by assignments) happen by simply copying the exact memory contents from source to target. Copying is authorized by default, but can be made illegal on a scope by specifying `assign <- delete`. All scopes with a defined `destructor` automatically have `assign <- delete`, unless it is being explicitly permitted using the `assign <- default` statement.
 
 ### 0.4. `this` value
 
@@ -130,56 +123,56 @@ In this way, S++ is heavily templated and expects the user to use them. Even bui
 ```spp
 // Abstract scalar, cannot be instanciated but can be used as a type parameter
 // to accept values which implement such interface
-scalar = interface;
+scalar <- interface;
 
 // Abstract natural integer, encompasses any integer which can represent
 // zero and strictly positive integers, but not strictly negative ones.
-natural = interface extends scalar;
+natural <- interface extends scalar;
 
 // Abstract signed integer, encompasses any integer including the ones which
 // can represent zero, positive and negative values.
-integer = interface extends natural;
+integer <- interface extends natural;
 
 // Abstract real number, can represent any positive number with a finite representation,
 // is not required to present an absolute precision on any value. Negative values cannot
 // be represented by this type.
-positive_real = interface extends scalar;
+positive_real <- interface extends scalar;
 
 // Abstract real number, can represent any positive or negative number with a finite representation,
 // is not required to present an absolute precision on any value.
-real = interface extends positive_real;
+real <- interface extends positive_real;
 
 // Abstract transcendental number. Because of their nature, they have their own class of `scalar`s
 // as they really cannot be treated as anything other than a symbol with special properties.
-transcendental = interface extends scalar;
+transcendental <- interface extends scalar;
 
 // Boolean type
-bool = class implements scalar;
+bool <- class implements scalar;
 
 // Signed two's complement integer with bit count `N`
-signed = function(N: compile_time host_unsigned) class implements integer;
+signed <- function(N: compile_time host_unsigned): class implements integer;
 
 // Unsigned integer with bit count `N`
-unsigned = function(N: compile_time host_unsigned) class implements natural;
+unsigned <- function(N: compile_time host_unsigned): class implements natural;
 
 // Signed two's complement fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
 // A single bit from `IntegerBitCount` will be used to store the sign
-fixed_signed = function(IntegerBitCount: compile_time host_unsigned, FractionalBitCount: compile_time host_unsigned) class implements real;
+fixed_signed <- function(IntegerBitCount: compile_time host_unsigned, FractionalBitCount: compile_time host_unsigned): class implements real;
 
 // Unsigned fixed-point scalar with bit count `IntegerBitCount + FractionalBitCount`
-fixed_unsigned = function(IntegerBitCount: compile_time host_unsigned, FractionalBitCount: compile_time host_unsigned) class implements positive_real;
+fixed_unsigned <- function(IntegerBitCount: compile_time host_unsigned, FractionalBitCount: compile_time host_unsigned): class implements positive_real;
 
 // IEEE 754 float with bit count `N`
-ieee754_float = float = function(N: compile_time host_unsigned): class implements real
+ieee754_float <- float <- function(N: compile_time host_unsigned): class implements real
 
 // Used by `minifloat`
-unsigned_minifloat = function(ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) class implements positive_real;
+unsigned_minifloat <- function(ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned): class implements positive_real;
 
 // Used by `minifloat`
-signed_minifloat = function(ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) class implements real;
+signed_minifloat <- function(ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned): class implements real;
 
 // General-purpose float
-minifloat = function(IsSigned: compile_time bool, ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) {
+minifloat <- function(IsSigned: compile_time bool, ExponentSize: compile_time host_unsigned, MantissaSize: compile_time host_unsigned, ExponentBias: compile_time host_unsigned) {
 	if (IsSigned)
 		return unsigned_minifloat(ExponentSize, MantissaSize, ExponentBias);
 	else
@@ -196,34 +189,34 @@ All of these builtin data types may be inherited from. In addition, S++ presents
 // Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `unsigned(64)`
 // Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `unsigned(32)`
 // This is guaranteed to be wide enough to hold a pointer represented as an integer.
-host_unsigned = host_u = native class implements natural;
+host_unsigned <- host_u <- native class implements natural;
 
 // Signed two's complement integer of the native register size of the platform the S++ compiler runs on
 // Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `signed(64)`
 // Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `signed(32)`
-host_signed = host_s = native class implements integer;
+host_signed <- host_s <- native class implements integer;
 
 // IEEE 754 float of the native register size of the platform the S++ compiler runs on
 // Under a 64-bit system (as AMD64, ARM64, and so on), this is equivalent to `float(64)`
 // Under a 32-bit system (as IA-32, ARMv7, and so on), this is equivalent to `float(32)`
-host_float = host_f = native class implements real;
+host_float <- host_f <- native class implements real;
 
 // Similar to `host_unsigned`, `host_signed` and `host_device` respectively,
 // these types target the system the application is being built for (and not being built on)
-device_unsigned = dev_u = native class implements natural;
-device_signed = dev_s = native class implements integer;
-device_float = dev_f = native class implements real;
+device_unsigned <- dev_u <- native class implements natural;
+device_signed <- dev_s <- native class implements integer;
+device_float <- dev_f <- native class implements real;
 
 // Equivalent to `signed` with the number in the identifier being `N`
-s8 = signed(8), s16 = signed(16), s32 = signed(32), s64 = signed(64), s128 = signed(128), s256 = signed(256)
+s8 <- signed(8), s16 <- signed(16), s32 <- signed(32), s64 <- signed(64), s128 <- signed(128), s256 <- signed(256)
 // Equivalent to `unsigned` with the number in the identifier being `N`
-u8 = unsigned(8), u16 = unsigned(16), u32 = unsigned(32), u64 = unsigned(64), u128 = unsigned(128), u256 = unsigned(256)
+u8 <- unsigned(8), u16 <- unsigned(16), u32 <- unsigned(32), u64 <- unsigned(64), u128 <- unsigned(128), u256 <- unsigned(256)
 
 // Equivalent to `ieee754_float` with the number in the identifier being `N`
 // `f80` is the non-IEEE 754, x86 extended precision format
 // All others are IEEE 754 standard
-f16 = ieee754_float(16), f32 = ieee754_float(32), f64 = ieee754_float(64), f128 = ieee754_float(128), f256 = ieee754_float(256)
-f80 = class implements real;
+f16 <- ieee754_float(16), f32 <- ieee754_float(32), f64 <- ieee754_float(64), f128 <- ieee754_float(128), f256 <- ieee754_float(256)
+f80 <- class implements real;
 ```
 
 By default, S++ presents every value of these data types to every application, without any restriction. Non-natively supported data types are emulated in software at an increased runtime cost. There is an understanding that the user would go on and emulate these data types anyway, so S++ builts them in to present increased robustness.
@@ -270,7 +263,7 @@ In `arabic` notation, the general notation is `([BASE])INTEGER(.[FRACTION])(x(-)
 Note that each digit sequence can contain a `_` which will get ignored while parsing. These characters can be inserted to increase readability of the literal.
 
 The value of the literal (which is also the internal representation) is `(INTEGER + FRACTION * pow(BASE, -FRACTION_WIDTH)) * pow(BASE, EXPONENT_SIGN * EXPONENT)`, where `FRACTION_WIDTH` is the number of digits in `BASE` within `FRACTION`. All of the individual components are `natural`s, but the overall value may be promoted to a `positive_real` by evaluating it.  
-The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`pow`, `log(Base)`, `nth_root(N)`, `sqrt = nth_root(2)`, `exp`, `ln = log(e)`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
+The compile-time literal system should support complex arithmetic operations such as exponential and trigonometric ones (`pow`, `log(Base)`, `nth_root(N)`, `sqrt <- nth_root(2)`, `exp`, `ln <- log(e)`, `cos`, `sin`, `tan`, `arccos`, `arcsin` and `arctan`).  
 `transcendental` constants with their exact value such as `pi`, `tau` and `e` are available. Scalar literals are guaranteed to be lossless, even under complex arithmetic, exponential or trigonometric operations. When losslessness cannot be guaranteed, the evaluation is deferred to the convertion to a non-literal scalar data type. These operations will be printed as-is if requested, without lossy evaluation. This is the only exception to the usually eager evaluation approach of S++.
 
 - The implementation must only have bitwise operators, `+`, `-` and `*` being considered lossless literal operators. The conversion of the result of all others operators to a non-literal scalar must be considered `lossy`, and then force the user to use an explicit `lossy` conversion. Exceptions must not apply even if the result of the operation actually happens to be representable without loss for these operations. This case is assumed to be non-trivial and may cause significant discrepancies among implementations if would be left to their discretion: lossy behavior must be assumed anyway.
@@ -310,15 +303,15 @@ Variable assignment happens using the `=` operator. The left token must be the v
 // At top-level scope
 // `a` would resolve to `undefined` if used here
 
-topLevel = u32(0hBAAD_BEEF)
+topLevel <- u32(0hBAAD_BEEF)
 
 // Named scope called `app`
-app = {
+app <- {
 	// `314` binary unsigned fixed-point scalar literal, converted to a non-literal scalar with no loss
-	a = dev_s(314)
+	a <- dev_s(314)
 
 	// `2.71` real with usage of a parent scope variable, yielding another real
-	b = 2.71 + topLevel
+	b <- 2.71 + topLevel
 }
 
 // `a` would still resolve to `undefined` if used here
@@ -330,13 +323,13 @@ As mentioned, variables can acquire multiple types:
 ```spp
 // `a` is `undefined` at this point
 
-a = true	// `a` is `bool` at this point
+a <- true	// `a` is `bool` at this point
 
 ...		// Some runtime-dependent branch gets us to:
-a = u32(314)	// `a` is `bool | u32` at this point
+a <- u32(314)	// `a` is `bool | u32` at this point
 
 ...		// Some other runtime-dependent branch gets us to:
-a = void	// `a` is `bool | u32 | void` at this point
+a <- void	// `a` is `bool | u32 | void` at this point
 ```
 
 The `void` value is similar to `undefined` as they are both symbols which require no storage at runtime (aside from the type identifier), but deviates in its purpose and semantic.
@@ -365,7 +358,7 @@ Functions get declared using the `function` keyword, followed by a `()` enclosed
 
 ```spp
 // `arg0` is of type `u32`, `arg1` is `undefined` and will acquire the type provided on invocation
-aFunction = function(arg0: u32, arg1) dev_u | void {
+aFunction <- function(arg0: u32, arg1): dev_u | void {
 	...
 }
 ```
@@ -380,7 +373,7 @@ Functions can be stored and typed. Their type begins with the `function` keyword
 
 ```spp
 // `deviceIndex` is of type `u32`, `callback` is a function taking a single `deviceEvent` argument and not returning a value.
-listenDevice = function(deviceIndex: u32, callback: function(deviceEvent)) {
+listenDevice <- function(deviceIndex: u32, callback: function(deviceEvent)) {
 	...
 }
 ```
@@ -389,7 +382,7 @@ A function not explicitly returning a value returns `void`. The type `undefined`
 
 A function may have its last argument denoting any number of arguments using the `...` type:
 ```spp
-callProxyFunction = function(args: ...) {
+callProxyFunction <- function(args: ...) {
 	return proxiedFunction(args...)
 }
 ```
@@ -410,19 +403,19 @@ A tuple has the following members available, given `TupleType` the type of the t
 TupleType: type
 TUnion: type
 
-__tuple_methods = interface {
+__tuple_methods <- interface {
 	// How many members in the tuple
 	size: dev_u
 
 	// Iterate through each member of the tuple, from the first to the last one.
 	// Return `false` to stop iterating.
-	iterate = function(handler: function(value: TUnion) bool) void;
+	iterate <- function(handler: function(value: TUnion) bool): void;
 
 	// Get the index-th element in the tuple
-	[] = function(index: compile_time host_u) TupleType[index];
+	[] <- function(index: compile_time host_u): TupleType[index];
 
 	// Set the index-th element in the tuple, also returns assigned value for single-statement, multiple-assignments
-	[]= = function(index: compile_time host_u, value: TupleType[index]) TupleType[index];
+	[]<- <- function(index: compile_time host_u, value: TupleType[index]): TupleType[index];
 }
 ```
 
@@ -431,7 +424,7 @@ __tuple_methods = interface {
 One core feature of S++ is arrays. Arrays are instantiated by specifying the size first, and then the type. In general, S++ syntax is based on the order of expected usage of the primitive, so naturally the type comes last. Arrays have a zero-argument constructor. The `type` of any array is `[]`.
 
 ```spp
-array = []u32()
+array <- []u32()
 ```
 
 Arrays in S++ are preferrably not with their size explicitly defined, except in circumstances where the size is well-known, static, and boundaries must be enforced. In general, it is more conveninent to let the static analysis figure out the largest size necessary. If static analysis declares the array unbounded, then runtime code generation is impossible.
@@ -459,15 +452,15 @@ Objects like instances of `class`, `struct` or `sequence` get instantiated by ca
 Sequences get defined using the `sequence` keyword, followed by the constructor arguments (similarly to a function arguments declaration), followed by `implements` or `extends` keywords to build upon another object type. The sequence itself is declared much like a function body which scope can be externally accessed. The default visibility attribute for sequence scopes is `public`. The `type` of any sequence is `sequence`.
 
 ```spp
-payloadGroup = sequence(argExtendedFlags: u32 | void, argRegister: u32 | void) {
-	hasExtendedFlags = argExtendedFlags != void
-	hasRegister = argRegister != void
+payloadGroup <- sequence(argExtendedFlags: u32 | void, argRegister: u32 | void) {
+	hasExtendedFlags <- not argExtendedFlags = void
+	hasRegister <- not argRegister = void
 
 	if (hasExtendedFlags) {
-		extendedFlags = argExtendedFlags
+		extendedFlags <- argExtendedFlags
 	}
 	if (hasRegister) {
-		register = argRegister
+		register <- argRegister
 	}
 }
 ```
@@ -479,16 +472,16 @@ It is illegal to perform a sequence write that would modify its structure and la
 A sequence can safely represent complex objects in memory, as for example C strings. Here is an example of a constructor of a C string from a generic `u8`-composed string:
 
 ```spp
-CString = sequence(source: StringU8NonZero) {
+CString <- sequence(source: StringU8NonZero) {
 private:
-	isZero = function(char: u8) {
+	isZero <- function(char: u8) {
 		return char = 0
 	}
 
 	// `present` means the instance gets accessed first as `data` then falls back to the sequence itself
 	// The function passed as argument checks if the passed member of the array marks the end of the array
 	// `present` overrides the current visibility attribute (here, `private`) to make the member always accessible
-	present data = [isZero]u8
+	present data <- [isZero]u8
 
 	for (char : source) {
 		data << char
@@ -510,12 +503,12 @@ Structs cannot embed any runtime variable-size member inside of them. The exact 
 Structs match 1-to-1 C++ `struct`s layout, except of course that they cannot represent pointers or references. By the capture exception on `struct` layout variability, S++ allows the user to define parameterized structs through a compile-time function:
 
 ```spp
-structWithArray = function(T: type, N: compile_time dev_u) {
+structWithArray <- function(T: type, N: compile_time dev_u) {
 	return struct(defaultValue: T) {
-		array = [N]T()
+		array <- [N]T()
 
 		for (i : count(N)) {
-			array[i] = defaultValue
+			array[i] <- defaultValue
 		}
 	}
 }
@@ -544,7 +537,7 @@ Conditional blocks will narrow down the possible assigned values of a variable. 
 // Assume `N` in scope, and is a `natural`
 N: natural
 
-f = function(x: natural) {
+f <- function(x: natural) {
 	// At this point in analysis, `0 _< x < +inf` (`natural` definition, would be `unknown` with `x` as `undefined`)
 
 	if (x >_ 0 && x < N) {
@@ -563,10 +556,10 @@ f = function(x: natural) {
 
 	if (x >_ 0 && x < N * 2) {
 		// `0 _< x < N * 2`
-		x = N / 2
+		x <- N / 2
 	} else {
 		// `x >_ N`
-		x = 0
+		x <- 0
 	}
 
 	// `x = N / 2 | x = 0`
@@ -577,11 +570,11 @@ Iterators which depend on compile-time values get fully unrolled to a sequence o
 
 ```spp
 // `count` is builtin, but presented here for completeness
-count = function(max: natural) {
+count <- function(max: natural) {
 	`0 _< max < +inf`
 
 	// `i = 0`, `1` time
-	i = 0
+	i <- 0
 	while (i < max) {
 		// `max` iterations
 
@@ -589,15 +582,15 @@ count = function(max: natural) {
 		yield i
 
 		// `0 _< i _< max`
-		i += 1
+		i + <- 1
 	}
 }
 
-f = function(x: natural, max: natural) {
+f <- function(x: natural, max: natural) {
 	// `0 _< x < +inf`
 
 	// `x = 5`
-	x = 5
+	x <- 5
 
 	for (i : count(max)) {
 		// Analysis of iterator `count` invocation:
@@ -605,7 +598,7 @@ f = function(x: natural, max: natural) {
 
 		if (i & 1 = 0) {
 			`5 _< x < 5 + max`
-			x += 1
+			x + <- 1
 		}
 	}
 
@@ -616,21 +609,21 @@ f = function(x: natural, max: natural) {
 From a lower-level perspective, the actual analysed code is the following, as the iterator is simply inlined:
 
 ```spp
-f = function(x: natural, max: natural) {
+f <- function(x: natural, max: natural) {
 	// `0 _< x < +inf`
 
 	// `x = 5`
-	x = 5
+	x <- 5
 
 	// `__count__i = 0`, `1` time
-	__count__i = 0
+	__count__i <- 0
 
 	while (i < max) {
 		if (__count__i & 1 = 0) {
-			x += 1
+			x + <- 1
 		}
 
-		__count__i += 1
+		__count__i + <- 1
 
 		// `__count__i` gets incremented with `1` units at each iteration
 		// Given that `__count__i = 0` before the iterator, it means `max` iterations
@@ -644,22 +637,22 @@ f = function(x: natural, max: natural) {
 Let's assume that the caller of the iterator does actually modify the iterator conditionally, with a more baroque first value:
 
 ```spp
-f = function(x: natural, max: natural) {
+f <- function(x: natural, max: natural) {
 	// `0 _< x < +inf`
 
 	// `x = 5`
-	x = 5
+	x <- 5
 
 	// `__count__i = 2`, `1` time
-	__count__i = 2
+	__count__i <- 2
 
 	while (i < max) {
 		if (__count__i & 1 = 0) {
-			x += 1
-			__count__i += 2
+			x + <- 1
+			__count__i + <- 2
 		}
 
-		__count__i += 1
+		__count__i + <- 1
 
 		// `__count__i` gets incremented with `1` to `3` units at each iteration
 		// Given that `__count__i = 2` before the iterator, it means at least `ceil((max - 2) / 3)` and at most `max - 2` iterations
@@ -674,11 +667,11 @@ f = function(x: natural, max: natural) {
 Finally, let's see a two-dimensionnal approach with zero-based iterators:
 
 ```spp
-f = function(x: natural, width: natural, height: natural) {
+f <- function(x: natural, width: natural, height: natural) {
 	// `0 _< x < +inf`
 
 	// `x = 5`
-	x = 5
+	x <- 5
 
 	for (i : count(height)) {
 		// `height` iterations, `0 _< i < height`
@@ -741,11 +734,11 @@ A new stack can be allocated by contructing a `stack` object:
 // `T` is the type of objects that can be allocated on top of the stack: any `type` is acceptable, including the ones with multiple possibilities
 // `AlignmentBitCount` is the address alignment of the base of the stack. If a stack is created for allocating segments of address bit count `N`,
 // pass at least `N` here to avoid padding insertion.
-stack = class(AddressBitCount: compile_time dev_u, T: type, AlignmentBitCount: compile_time dev_u = default_page_size) {
+stack <- class(AddressBitCount: compile_time dev_u, T: type, AlignmentBitCount: compile_time dev_u <- default_page_size) {
 public:
 	// Iterate through the current sub-stack from the base to the top,
 	// return `false` to stop iterating
-	iterate = function(handler: function(value: T) bool) void;
+	iterate <- function(handler: function(value: T) bool): void;
 
 	// Get the long reference class. This is guaranteed to take the same space as a `device_unsigned`.
 	// The result `present`s the underlying referenced value,
@@ -753,21 +746,21 @@ public:
 	// Instantiate the resulting class, passing a value stored in `this`, to keep a reference of such value.
 	// The stack producing this reference type must not be destroyed before any instance of the reference:
 	// this is statically asserted by the compiler.
-	ref = function(ToRefType: type) class;
+	ref <- function(ToRefType: type): class;
 
 
 	// Methods below can be called only if the stack top is currently owned by `this`
 
 	// Allocate `value` on top of the stack, and get a reference to that placed value within the stack
-	<< = function(value: T) ref(T);
+	<< <- function(value: T): ref(T);
 
 	// Split the stack, the return value now owns the stack top (which becomes its stack base) until destroyed
 	// At return value destruction, the stack top of `this` is the same as it was when `split` was called
 	// Even if `SubT = T`, `this.iterate` will still stop before the result base
-	split = function(SubT: type = T): stack;
+	split <- function(SubT: type <- T): stack;
 
 	// Return all physical memory past the top to the runtime
-	trim = function();
+	trim <- function();
 }
 ```
 
@@ -788,27 +781,27 @@ Any object of the supplied type `T` can be allocated on top of the stack to make
 The purpose of segments is to define a localized address space which can be addressed using relatively short opaque scalars (called "indices" here). A `segment` is a parametrized type that takes as argument the number of bits of the address space:
 
 ```spp
-__segment_methods = interface {
+__segment_methods <- interface {
 	// Get the short reference class. This is guaranteed to take the same space as a `unsigned(AddressBitCount)`.
 	// The result `present`s the underlying referenced value,
 	// making using the reference roughly equivalent to directly using the underlying value.
 	// Instantiate the resulting class, passing a value stored in `this` (segment), to keep a reference of such value.
 	// This reference must be stored in the same segment that produced it.
-	ref = function(ToRefType: type) class;
+	ref <- function(ToRefType: type): class;
 
 	// Returns whether or not a value could fit within the remaining stack
 	// This must be explicitly called if the compiler cannot statically assert
 	// that a value would fit within the segment, then making the assertion at
 	// runtime. It is not possible to compile code that does not assert that a certain
 	// value would fit within the segment.
-	canAllocate(value: T) bool;
+	canAllocate(value: T): bool;
 
 	// Allocate `value` at the end of used space within the segment,
 	// and get a reference to that placed value within the stack
-	<< = function(value: T) ref(T);
+	<< <- function(value: T): ref(T);
 }
 
-segment = function(AddressBitCount: compile_time dev_u) class implements __segment_methods;
+segment <- function(AddressBitCount: compile_time dev_u): class implements __segment_methods;
 ```
 
 Contrary to `stack`, `AddressBitCount` does not indicate a potential maximum size but the full size of the `segment` at allocation. In addition to that, `segment`s are always aligned on their size. This allows trivial addressing from only an address within the segment and the index from the beginning of the segment (also knowing the size of the segment at compile-time).
@@ -833,11 +826,11 @@ To expose objects, the `export` keyword is used:
 ```spp
 // `lib.spp`
 
-export aFunction = function(a, b, c) {
+export aFunction <- function(a, b, c) {
 	...
 }
 
-export bValue = 3.14
+export bValue <- 3.14
 ```
 
 To import objects from another module, the `import` keyword is used:
@@ -868,7 +861,7 @@ MainStackAddressBitCount: compile_time dev_u
 // `args` can be replaced by any number of arguments,
 // the single variable-length argument of type `...` is only shown as a general example.
 // The arguments part can be omitted altogether, which is the same as having zero argument.
-export main = entry_point(MainStackAddressBitCount)(args: ...) {
+export main <- entry_point(MainStackAddressBitCount)(args: ...) {
 	...
 	return some_value
 }
@@ -883,14 +876,14 @@ S++ programs can return any runtime-representable value they want, which can the
 
 In an interactive S++ shell, invoking a program defined by a file module happens by calling the loaded path to the file module, containing exactly one exported entry-point:
 ```spp
-result = load("/path/to/file/module")(arg0, arg1, arg2, ...)
+result <- load("/path/to/file/module")(arg0, arg1, arg2, ...)
 ```
 
 As for module `import`s, the `.spp` extension must not be indicated. The `.` operator can be used to reference module files relatively to the current working directory.
 
 In a simplified S++ shell, the same behavior can be achieved with:
 ```spp
-result = /path/to/file/module arg0 arg1 arg2 ...
+result <- /path/to/file/module arg0 arg1 arg2 ...
 ```
 
 The simplified S++ shell is designed to be competitive with popular Unix-like shells such as Bash or Zsh (and friends) in terms of typing speed and operator overhead, while providing comprehensive and accurate code completion on the fly. Tokens usage is inferred on the context, allowing to run a S++ program by simply typing out its module path and providing space-separated arguments. Simplified S++ is meant to be write-only, typed on the fly and takes inspiration from popular functional languages such as Haskell and Lisp. Expressions are parentheses-enclosed and here in particular, strings do not need to have double-quote characters to be written out. When a value from an enum is expected, simplified S++ will happily suggest and accept any identifier which is part of the enum in question. Types (shallowly as well as deeply) referenced by the entry-point arguments are automatically suggested and available in the context of invoking such entry-point. Scalar literals can be inputed exactly like in standard S++.
@@ -929,7 +922,7 @@ The base primitive of S++ to achieve that is the `thread`, which are created lik
 // here represented for completeness.
 MainStackAddressBitCount: compile_time dev_u
 
-threadHandle = thread(MainStackAddressBitCount) {
+threadHandle <- thread(MainStackAddressBitCount) {
 	// Thread work...
 	...
 }
@@ -945,16 +938,16 @@ Note that because each created thread actually needs to create a new execution s
 Threads can capture any compile-time value very much like a `function` can do. Threads can also capture runtime variables, but only the ones wrapped around a `concurrently` object:
 
 ```spp
-someConstant = 314
+someConstant <- 314
 
 // `concurrently` takes a `type` as argument,
 // the resulting type can then be constructed
-valueToInc = concurrently(u32)(0)
+valueToInc <- concurrently(u32)(0)
 
-threadHandle = thread(32) {
+threadHandle <- thread(32) {
 	valueToInc.manipulate(function(value) {
 		for (i : count(someConstant))
-			value += i
+			value + <- i
 	})
 }
 

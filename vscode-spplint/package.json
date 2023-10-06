@@ -1,0 +1,25 @@
+{
+  "name": "vscode-spplint",
+  "displayName": "S++ lint",
+  "description": "Language support for S++",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "spp",
+      "aliases": ["S++", "spp"],
+      "extensions": [".spp"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "spp",
+      "scopeName": "source.spp",
+      "path": "./syntaxes/spp.tmLanguage.json"
+    }]
+  }
+}
