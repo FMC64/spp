@@ -15,7 +15,10 @@ public:
 	Program build(const std::filesystem::path &entryPointPath) {
 		auto tokens = TokenParser::readTokens(entryPointPath);
 		for (auto &token : tokens) {
-			std::printf("'%s'\n", token.getEscapedString().c_str());
+			if (token.getClass() == TokenClass::StringLiteral)
+				std::printf("\"%s\"\n", token.getEscapedString().c_str());
+			else
+				std::printf("%s\n", token.getEscapedString().c_str());
 		}
 
 		return Program();

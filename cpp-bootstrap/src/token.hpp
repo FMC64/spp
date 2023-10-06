@@ -21,12 +21,16 @@ class Token {
 	std::string _underlyingStr;
 
 	static inline std::string linefeedString = "\n";
-	static inline std::string escapedLinefeedString = "\\n";
+	static inline std::string escapedLinefeedString = "[LINEFEED]";
 
 public:
 	Token(TokenClass tokenClass, const std::string &str) :
 		_class(tokenClass),
 		_underlyingStr(str) {
+	}
+
+	TokenClass getClass(void) const {
+		return _class;
 	}
 
 	size_t getLength(void) const {
@@ -53,7 +57,10 @@ namespace Tokens {
 	static inline auto rightArraySubscript = Token(TokenClass::Operator, "]");
 	static inline auto leftBracket = Token(TokenClass::Operator, "{");
 	static inline auto rightBracket = Token(TokenClass::Operator, "}");
+	static inline auto comma = Token(TokenClass::Operator, ",");
 	static inline auto colon = Token(TokenClass::Operator, ":");
+	static inline auto semicolon = Token(TokenClass::Operator, ";");
+	static inline auto variableArgumentCountType = Token(TokenClass::Operator, "...");
 	static inline auto assign = Token(TokenClass::Operator, "<-");
 
 	// Arithmetic
@@ -91,7 +98,10 @@ namespace Tokens {
 		rightArraySubscript,
 		leftBracket,
 		rightBracket,
+		comma,
 		colon,
+		semicolon,
+		variableArgumentCountType,
 		assign,
 
 		booleanNot,
@@ -151,7 +161,7 @@ class TokenParser {
 	}
 
 	static bool doesFileContainStringAt(const std::string &sourceFile, size_t offset, const std::string &toFind) {
-		if (offset + toFind.size() < sourceFile.size()) {
+		if (offset + toFind.size() <= sourceFile.size()) {
 			for (size_t i = 0; i < toFind.size(); i++)
 				if (sourceFile[offset + i] != toFind[i])
 					return false;
@@ -187,6 +197,27 @@ class TokenParser {
 		return offset;
 	}
 
+	static std::pair<size_t, Token> pollString(const std::filesystem::path &sourceFilePath, const std::string &sourceFile, size_t offset) {
+		auto delimiter = sourceFile[offset];
+		auto beginOffset = offset;
+		std::string string;
+
+		offset++;
+		while (true) {
+			if (!(offset < sourceFile.size())) {
+				std::stringstream ss;
+				ss << sourceFilePath << ", from offset " << beginOffset << ": unterminated string";
+				throw std::runtime_error(ss.str());
+			}
+			if (sourceFile[offset] == delimiter) {
+				return std::make_pair(offset + 1, Token(TokenClass::StringLiteral, string));
+			} else {
+				string.push_back(sourceFile[offset]);
+			}
+			offset++;
+		}
+	}
+
 	static char toLower(char toProcess) {
 		if (toProcess >= 'A' && toProcess <= 'Z')
 			return toProcess + 32;
@@ -215,12 +246,18 @@ class TokenParser {
 		return std::make_pair(offset, Token(isDigit ? TokenClass::Digits : TokenClass::Identifier, sequence));
 	}
 
-	static std::pair<size_t, Token> getTokenAt(const std::string &sourceFile, size_t offset) {
+	static std::pair<size_t, Token> getTokenAt(const std::filesystem::path &sourceFilePath, const std::string &sourceFile, size_t offset) {
+		auto firstChar = sourceFile[offset];
 		// Linefeed
 		{
-			auto firstChar = sourceFile[offset];
 			if (firstChar == '\n')
 				return std::make_pair(offset + 1, Tokens::linefeed);
+		}
+
+		// String literal
+		{
+			if (firstChar == '\'' || firstChar == '"')
+				return pollString(sourceFilePath, sourceFile, offset);
 		}
 
 		// Operators
@@ -270,7 +307,7 @@ public:
 		while (offset < sourceFile.size()) {
 			offset = getNextTokenOffsetFrom(sourceFile, offset);
 			if (offset < sourceFile.size()) {
-				auto [nextTokenOffset, token] = getTokenAt(sourceFile, offset);
+				auto [nextTokenOffset, token] = getTokenAt(sourceFilePath, sourceFile, offset);
 
 				if (token.getLength() == 0) {
 					std::stringstream ss;
