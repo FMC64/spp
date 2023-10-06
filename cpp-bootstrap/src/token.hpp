@@ -178,8 +178,11 @@ class TokenParser {
 		if (doesFileContainStringAt(sourceFile, offset, singleLineComment)) {
 			return skipLine(sourceFile, offset);
 		} else if (doesFileContainStringAt(sourceFile, offset, multiLineCommentBegin)) {
-			while (offset < sourceFile.size() && doesFileContainStringAt(sourceFile, offset, multiLineCommentEnd)) {
-				offset++;
+			while (offset < sourceFile.size()) {
+				if (doesFileContainStringAt(sourceFile, offset, multiLineCommentEnd))
+					return offset + multiLineCommentEnd.size();
+				else
+					offset++;
 			}
 			return offset;
 		} else
