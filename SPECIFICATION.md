@@ -40,8 +40,8 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 	- `^`: binary XOR
 	- `&`: binary AND
 8. Comparison operators, left-to-right. Note that this phase has an arbitrary arity: a `[MIN] _< value < [MAX]` value is perfectly valid in S++, and is equivalent to `[MIN] _< value and value < [MAX]`.
-	- `=`: is-equal-to operator
-	- `=/=`: is-different-than operator. As an alternative, you can use `not [VALUE_LEFT] = [VALUE_RIGHT]`, which is equivalent in simple cases
+	- `=`: equal-to operator
+	- `=/=`: different-from operator. As an alternative, you can use `not [VALUE_LEFT] = [VALUE_RIGHT]`, which is equivalent in simple cases
 	- `>`: greater-than operator
 	- `<`: lesser-than operator
 	- `>_`: greater-than-or-equal-to operator
@@ -483,7 +483,7 @@ private:
 	// `present` overrides the current visibility attribute (here, `private`) to make the member always accessible
 	present data <- [isZero]u8
 
-	for (char : source) {
+	for (char in source) {
 		data << char
 	}
 	// It must be statically analysed that the last back-inserted member of the array will satisfy
@@ -507,7 +507,7 @@ structWithArray <- function(T: type, N: compile_time dev_u) {
 	return struct(defaultValue: T) {
 		array <- [N]T()
 
-		for (i : count(N)) {
+		for (i in count(N)) {
 			array[i] <- defaultValue
 		}
 	}
@@ -592,7 +592,7 @@ f <- function(x: natural, max: natural) {
 	// `x = 5`
 	x <- 5
 
-	for (i : count(max)) {
+	for (i in count(max)) {
 		// Analysis of iterator `count` invocation:
 		// `max` iterations, and  `0 _< i < max`
 
@@ -673,10 +673,10 @@ f <- function(x: natural, width: natural, height: natural) {
 	// `x = 5`
 	x <- 5
 
-	for (i : count(height)) {
+	for (i in count(height)) {
 		// `height` iterations, `0 _< i < height`
 
-		for (j : count(width)) {
+		for (j in count(width)) {
 			// `width` iterations, `0 _< j < width`
 
 			// Overall this is executed `height * width` times
@@ -946,7 +946,7 @@ valueToInc <- concurrently(u32)(0)
 
 threadHandle <- thread(32) {
 	valueToInc.manipulate(function(value) {
-		for (i : count(someConstant))
+		for (i in count(someConstant))
 			value + <- i
 	})
 }

@@ -73,7 +73,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.spp",
-				"match": "\\b(if|then|else|while|for|return|yield|continue|break|try|catch|assign|present)\\b"
+				"match": "\\b(if|then|else|while|for|return|yield|in|continue|break|try|catch|assign|present)\\b"
 			}]
 		},
 		"operatorKeywords": {

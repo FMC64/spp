@@ -1,8 +1,12 @@
 acc <- 0
 
-for (i : count(10)) {
+// Sample single-line comment
+for (i in count(10)) {
 	inc <- i * acc
 	std_out << "i = " << i << ", inc = " << inc << end_line
+	/*
+		Sample multi-line comment
+	*/
 	acc + <- inc
 }
 
