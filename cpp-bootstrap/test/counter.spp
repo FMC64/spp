@@ -3,11 +3,11 @@ acc <- 0
 // Sample single-line comment
 for (i in count(10)) {
 	inc <- i * acc
-	std_out << "i = " << i << ", inc = " << inc << end_line
+	std_out <<- "i = " <<- i <<- ", inc = " <<- inc <<- end_line
 	/*
 		Sample multi-line comment
 	*/
 	acc + <- inc
 }
 
-std_out << "acc(end of program) = " << acc << end_line
+std_out <<- "acc(end of program) = " <<- acc <<- end_line

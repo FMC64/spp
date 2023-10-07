@@ -363,7 +363,6 @@ namespace token {
 	}
 
 	void printMessageAt(const FileLocation &referenceFileLocation, size_t beginOffset, size_t endOffset, const std::vector<Token> &tokensToHighlight, const std::string &messageToPrint) {
-		std::printf("%zu, %zu\n", beginOffset, endOffset);
 		std::stringstream ss;
 		ss << referenceFileLocation.getPointedFile().getPath().string() << ":" << referenceFileLocation.getLine() << ":" << referenceFileLocation.getColumn() << ": " << messageToPrint << std::endl;
 		std::optional<FileLocation> printingLocation = FileLocation(referenceFileLocation.getPointedFile());
@@ -391,7 +390,7 @@ namespace token {
 						break;
 					}
 					bool isHighlighted = isAnyTokenWithinOffset(tokensToHighlight, linePrintingLocation.getOffset());
-					ss << (isHighlighted ? '~' : ' ');
+					ss << (isHighlighted ? '~' : (linePrintingLocation.getCurrentCharacter() == '\t' ? '\t' : ' '));
 					linePrintingLocation.moveForward();
 				}
 				ss << std::endl;
