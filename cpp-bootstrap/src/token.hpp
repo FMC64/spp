@@ -370,7 +370,7 @@ namespace token {
 		while (printingLocation->getOffset() < endOffset) {
 			{
 				auto linePrintingLocation = *printingLocation;
-				ss << linePrintingLocation.getLine() << "\t| ";
+				ss << linePrintingLocation.getLine() << "\t|\t";
 				while (linePrintingLocation.isBeforeEnd()) {
 					if (linePrintingLocation.getCurrentCharacter() == '\n') {
 						linePrintingLocation.moveForward();
@@ -383,14 +383,15 @@ namespace token {
 			}
 			{
 				auto linePrintingLocation = *printingLocation;
-				ss << "\t| ";
+				ss << "\t|\t";
 				while (linePrintingLocation.isBeforeEnd()) {
 					if (linePrintingLocation.getCurrentCharacter() == '\n') {
 						linePrintingLocation.moveForward();
 						break;
 					}
 					bool isHighlighted = isAnyTokenWithinOffset(tokensToHighlight, linePrintingLocation.getOffset());
-					ss << (isHighlighted ? '~' : (linePrintingLocation.getCurrentCharacter() == '\t' ? '\t' : ' '));
+					bool isTab = linePrintingLocation.getCurrentCharacter() == '\t';
+					ss << (isHighlighted ? (isTab ? "~~~~~~~~" : "~") : (isTab ? "\t" : " "));
 					linePrintingLocation.moveForward();
 				}
 				ss << std::endl;
