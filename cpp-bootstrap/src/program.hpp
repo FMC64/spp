@@ -1,7 +1,6 @@
 #pragma once
 
-class Program
-{
+class Program {
 public:
 	Program(void) {
 	}

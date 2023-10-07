@@ -4,8 +4,7 @@
 #include <string>
 #include "program.hpp"
 
-class Runner
-{
+class Runner {
 public:
 	Runner(void) {
 	}

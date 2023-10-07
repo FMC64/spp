@@ -6,14 +6,14 @@
 
 #include <cstdio>
 
-class Compiler
-{
+class Compiler {
 public:
 	Compiler(void) {
 	}
 
 	Program build(const std::filesystem::path &entryPointPath) {
-		auto tokens = TokenParser::readTokens(entryPointPath);
+		auto sourceFile = File(entryPointPath);
+		auto tokens = TokenParser::readTokens(sourceFile);
 		for (auto &token : tokens) {
 			if (token.getClass() == TokenClass::StringLiteral)
 				std::printf("\"%s\"\n", token.getEscapedString().c_str());
