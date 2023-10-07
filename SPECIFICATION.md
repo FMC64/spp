@@ -57,6 +57,7 @@ S++ defines the following operators, by top to bottom precedence and listed by b
 		- This is not to be confused with a conditional scope, which are differentiated by the absence of `()` enclosed predicate here
 12. Assignment operators, right-to-left
 	- `<-`: assignment operator
+	- `<<-`: back-insert operator
 	- `+ <-`: accumulation operator
 	- `- <-`: decrease operator
 	- `* <-`: multiply-by operator
@@ -433,7 +434,7 @@ There are two phases in using arrays with runtime size:
 - 1. Back-insertion
 - 2. Reading and writing into the array
 
-Back-insertion is made by using the `<<` operator on the array on the left and the value to insert on the right. On the first indexed read or write into the array, the back-insertion phase completes. A range for the maximum and minimum size of the array is issued. No more back-insertions are allowed. Indices for reading and writing are statically analysed and enforced to fit within the determined range of the minimum size of the array.
+Back-insertion is made by using the `<<-` operator on the array on the left and the value to insert on the right. On the first indexed read or write into the array, the back-insertion phase completes. A range for the maximum and minimum size of the array is issued. No more back-insertions are allowed. Indices for reading and writing are statically analysed and enforced to fit within the determined range of the minimum size of the array.
 
 As for arrays with explicitly defined, compile-time boundaries, the two phases are:
 - 1. Initialization
@@ -484,11 +485,11 @@ private:
 	present data <- [isZero]u8
 
 	for (char in source) {
-		data << char
+		data <<- char
 	}
 	// It must be statically analysed that the last back-inserted member of the array will satisfy
 	// the end-of-array function `isZero`, and that each previous member do not.
-	data << 0
+	data <<- 0
 }
 ```
 
@@ -752,7 +753,7 @@ public:
 	// Methods below can be called only if the stack top is currently owned by `this`
 
 	// Allocate `value` on top of the stack, and get a reference to that placed value within the stack
-	<< <- function(value: T): ref(T);
+	<<- <- function(value: T): ref(T);
 
 	// Split the stack, the return value now owns the stack top (which becomes its stack base) until destroyed
 	// At return value destruction, the stack top of `this` is the same as it was when `split` was called
@@ -798,7 +799,7 @@ __segment_methods <- interface {
 
 	// Allocate `value` at the end of used space within the segment,
 	// and get a reference to that placed value within the stack
-	<< <- function(value: T): ref(T);
+	<<- <- function(value: T): ref(T);
 }
 
 segment <- function(AddressBitCount: compile_time dev_u): class implements __segment_methods;
@@ -900,7 +901,7 @@ A post-scope `catch` scope must be defined to catch an exception:
 } catch (error) {
 	// `error` is of type `string_utf8`
 
-	std_out << "Exception caught: " << error << end_line
+	std_out <<- "Exception caught: " <<- error <<- end_line
 	// Rethrow exception, to propagate it further
 	throw error
 }
@@ -953,7 +954,7 @@ threadHandle <- thread(32) {
 
 threadHandle.join()
 
-std_out << "Thread result: " << valueToInc.get() << end_line
+std_out <<- "Thread result: " <<- valueToInc.get() <<- end_line
 ```
 
 Similarly to functions, threads must have `join`'d before any captured variable can be destroyed.

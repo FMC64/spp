@@ -16,9 +16,9 @@ public:
 		auto tokens = TokenParser::readTokens(sourceFile);
 		for (auto &token : tokens) {
 			if (token.getClass() == TokenClass::StringLiteral)
-				std::printf("\"%s\"\n", token.getEscapedString().c_str());
+				std::printf("\"%s\"\n", token.getString().c_str());
 			else
-				std::printf("%s\n", token.getEscapedString().c_str());
+				std::printf("%s\n", token.getString().c_str());
 		}
 
 		return Program();

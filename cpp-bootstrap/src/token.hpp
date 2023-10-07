@@ -7,6 +7,7 @@
 #include <tuple>
 #include <optional>
 #include <stdexcept>
+#include <algorithm>
 
 class File {
 	std::filesystem::path m_filePath;
@@ -23,6 +24,10 @@ public:
 	File(const std::filesystem::path &filePath) :
 		m_filePath(filePath),
 		m_bytes(readFileBytes(filePath)) {
+	}
+
+	const std::filesystem::path& getPath(void) const {
+		return m_filePath;
 	}
 
 	bool isBeforeEnd(size_t offset) const {
@@ -59,6 +64,9 @@ public:
 		m_column(1) {
 	}
 
+	const File &getPointedFile(void) const {
+		return m_pointedFile;
+	}
 	// Location getters
 	size_t getOffset(void) const {
 		return m_offset;
@@ -144,15 +152,27 @@ class Token {
 	FileLocation m_fileLocation;
 	TokenClass m_class;
 	std::string m_underlyingStr;
+	size_t m_sizeInFile;
 
 	static inline std::string linefeedString = "\n";
 	static inline std::string escapedLinefeedString = "[LINEFEED]";
+
+	size_t computeSizeInFile(void) const {
+		auto res = m_underlyingStr.size();
+		if (m_class == TokenClass::StringLiteral) {
+			// Adding delimiters
+			res += 2;
+		}
+		res = std::min(res, m_fileLocation.readableCharacterCount());
+		return res;
+	}
 
 public:
 	Token(const FileLocation &fileLocation, TokenClass tokenClass, const std::string &str) :
 		m_fileLocation(fileLocation),
 		m_class(tokenClass),
-		m_underlyingStr(str) {
+		m_underlyingStr(str),
+		m_sizeInFile(computeSizeInFile()) {
 	}
 	Token(const FileLocation &fileLocation, const TokenStub &stub) :
 		Token(fileLocation, stub.getClass(), stub.getString()) {
@@ -166,11 +186,11 @@ public:
 		return m_class;
 	}
 
-	size_t getLength(void) const {
-		return m_underlyingStr.size();
+	size_t getSizeInFile(void) const {
+		return m_sizeInFile;
 	}
 
-	const std::string& getEscapedString(void) const {
+	const std::string& getString(void) const {
 		if (m_underlyingStr == linefeedString)
 			return escapedLinefeedString;
 		else
@@ -195,6 +215,7 @@ namespace Tokens {
 	static inline auto semicolon = TokenStub(TokenClass::Operator, ";");
 	static inline auto variableArgumentCountType = TokenStub(TokenClass::Operator, "...");
 	static inline auto assign = TokenStub(TokenClass::Operator, "<-");
+	static inline auto backInsert = TokenStub(TokenClass::Operator, "<<-");
 
 	// Arithmetic
 	static inline auto booleanNot = TokenStub(TokenClass::Operator, "!");
@@ -236,6 +257,7 @@ namespace Tokens {
 		semicolon,
 		variableArgumentCountType,
 		assign,
+		backInsert,
 
 		booleanNot,
 		binaryNot,
@@ -261,6 +283,136 @@ namespace Tokens {
 		greaterThanOrEqualTo,
 		lesserThanOrEqualTo
 	};
+}
+
+namespace token {
+	void assertAtLeastOneToken(const std::vector<Token> &tokensToQuery) {
+		if (tokensToQuery.size() == 0)
+			throw std::runtime_error("assertAtLeastOneToken: expected at least a single token, got zero of them");
+	}
+
+	const File& getFileCommonToAllTokens(const std::vector<Token> &tokensToQuery) {
+		assertAtLeastOneToken(tokensToQuery);
+
+		auto &res = tokensToQuery.begin()->getFileLocation().getPointedFile();
+		for (auto &token : tokensToQuery) {
+			auto &currentTokenFile = token.getFileLocation().getPointedFile();
+			if (&currentTokenFile != &res) {
+				std::stringstream ss;
+				ss << "getFileCommonToAllTokens: not all tokens in the same file, have the first in " << res.getPath() <<
+					", and token '" << token.getString() << "' in " << currentTokenFile.getPath();
+				throw std::runtime_error(ss.str());
+			}
+		}
+
+		return res;
+	}
+
+	// `linesToSkip` indicates the direction of search and how many linefeeds to look for
+	// Will return begin or end offsets for respectively `offset` negative or positive
+	size_t searchNearbyLine(const File &file, size_t offset, int32_t linesToSkip) {
+		size_t count = std::labs(linesToSkip);
+		size_t unitBasis = linesToSkip >= 0 ? 1 : -1;
+
+		while (count > 0) {
+			auto nextOffset = offset + unitBasis;
+			if (!file.isBeforeEnd(nextOffset))
+				return offset;
+			offset = nextOffset;
+
+			if (file.read(offset) == '\n')
+				count--;
+		}
+		// If negative, found linefeed is not part of beginning
+		if (linesToSkip < 0) {
+			auto nextOffset = offset + 1;
+			if (file.isBeforeEnd(nextOffset))
+				offset = nextOffset;
+		}
+		return offset;
+	}
+
+	const Token& getFirstToken(const std::vector<Token> &tokensToQuery) {
+		assertAtLeastOneToken(tokensToQuery);
+
+		const Token *res = &*tokensToQuery.begin();
+		for (auto &token : tokensToQuery) {
+			if (token.getFileLocation().getOffset() < res->getFileLocation().getOffset())
+				res = &token;
+		}
+		return *res;
+	}
+
+	const Token& getLastToken(const std::vector<Token> &tokensToQuery) {
+		assertAtLeastOneToken(tokensToQuery);
+
+		const Token *res = &*tokensToQuery.begin();
+		for (auto &token : tokensToQuery) {
+			if (token.getFileLocation().getOffset() + token.getSizeInFile() > res->getFileLocation().getOffset() + res->getSizeInFile())
+				res = &token;
+		}
+		return *res;
+	}
+
+	bool isAnyTokenWithinOffset(const std::vector<Token> &candidateTokens, size_t offset) {
+		for (auto &token : candidateTokens) {
+			if (offset >= token.getFileLocation().getOffset() && offset < token.getFileLocation().getOffset() + token.getSizeInFile())
+				return true;
+		}
+		return false;
+	}
+
+	void printMessageAt(const FileLocation &referenceFileLocation, size_t beginOffset, size_t endOffset, const std::vector<Token> &tokensToHighlight, const std::string &messageToPrint) {
+		std::printf("%zu, %zu\n", beginOffset, endOffset);
+		std::stringstream ss;
+		ss << referenceFileLocation.getPointedFile().getPath().string() << ":" << referenceFileLocation.getLine() << ":" << referenceFileLocation.getColumn() << ": " << messageToPrint << std::endl;
+		std::optional<FileLocation> printingLocation = FileLocation(referenceFileLocation.getPointedFile());
+		printingLocation->moveForwardMultiple(beginOffset);
+		while (printingLocation->getOffset() < endOffset) {
+			{
+				auto linePrintingLocation = *printingLocation;
+				ss << linePrintingLocation.getLine() << "\t| ";
+				while (linePrintingLocation.isBeforeEnd()) {
+					if (linePrintingLocation.getCurrentCharacter() == '\n') {
+						linePrintingLocation.moveForward();
+						break;
+					}
+					ss << linePrintingLocation.getCurrentCharacter();
+					linePrintingLocation.moveForward();
+				}
+				ss << std::endl;
+			}
+			{
+				auto linePrintingLocation = *printingLocation;
+				ss << "\t| ";
+				while (linePrintingLocation.isBeforeEnd()) {
+					if (linePrintingLocation.getCurrentCharacter() == '\n') {
+						linePrintingLocation.moveForward();
+						break;
+					}
+					bool isHighlighted = isAnyTokenWithinOffset(tokensToHighlight, linePrintingLocation.getOffset());
+					ss << (isHighlighted ? '~' : ' ');
+					linePrintingLocation.moveForward();
+				}
+				ss << std::endl;
+				printingLocation.emplace(linePrintingLocation);
+			}
+		}
+		std::printf("%s", ss.str().c_str());
+	}
+
+	void printMessage(const std::vector<Token> &tokensToHighlight, const std::string &messageToPrint) {
+		auto &file = getFileCommonToAllTokens(tokensToHighlight);
+
+		auto &firstToken = getFirstToken(tokensToHighlight);
+		auto firstTokenOffset = firstToken.getFileLocation().getOffset();
+		auto &lastToken = getLastToken(tokensToHighlight);
+		auto lastTokenOffset = lastToken.getFileLocation().getOffset() + lastToken.getSizeInFile();
+
+		auto firstLineBeginOffset = searchNearbyLine(file, firstTokenOffset, -1);
+		auto lastLineEndOffset = searchNearbyLine(file, lastTokenOffset, 1);
+		printMessageAt(firstToken.getFileLocation(), firstLineBeginOffset, lastLineEndOffset, tokensToHighlight, messageToPrint);
+	}
 }
 
 class TokenParser {
@@ -343,9 +495,8 @@ class TokenParser {
 		std::string string;
 		while (true) {
 			if (!currentLocation.isBeforeEnd()) {
-				std::stringstream ss;
-				ss << "from offset " << beginLocation.getOffset() << ": unterminated string";
-				throw std::runtime_error(ss.str());
+				token::printMessage({Token(beginLocation, TokenClass::StringLiteral, string)}, "unterminated string");
+				throw std::runtime_error("Token parsing failed");
 			}
 			if (currentLocation.getCurrentCharacter() == delimiter) {
 				currentLocation.moveForward();
@@ -446,10 +597,11 @@ public:
 			if (currentLocation.isBeforeEnd()) {
 				auto token = getTokenAt(currentLocation);
 
-				if (token.getLength() == 0) {
+				if (token.getSizeInFile() == 0) {
 					std::stringstream ss;
-					ss << "offset " << currentLocation.getOffset() << ": illegal character";
-					throw std::runtime_error(ss.str());
+					ss << token.getFileLocation().getCurrentCharacter();
+					token::printMessage({Token(token.getFileLocation(), token.getClass(), ss.str())}, "illegal character");
+					throw std::runtime_error("Token parsing failed");
 				}
 				res.emplace_back(std::move(token));
 			}
